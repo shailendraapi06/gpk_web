@@ -1,0 +1,10 @@
+export { DepartmentAboutSection } from "./DepartmentAboutSection";
+export { DepartmentCard } from "./DepartmentCard";
+export { DepartmentGallerySection } from "./DepartmentGallerySection";
+export { DepartmentGrid } from "./DepartmentGrid";
+export { DepartmentHeaderSection } from "./DepartmentHeaderSection";
+export { FacultyProfileCard } from "./FacultyProfileCard";
+export { FacultySection } from "./FacultySection";
+export { HodMessageSection } from "./HodMessageSection";
+export { CurriculumSection } from "./CurriculumSection";
+export { PlacementSection } from "./PlacementSection";
