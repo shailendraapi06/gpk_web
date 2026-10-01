@@ -33,6 +33,13 @@ export function AdminFooterMgmtPage() {
     { id: "soc-4", label: "YouTube", href: "https://youtube.com", shortLabel: "Yt" }
   ]);
 
+  // Modal and Form States
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [currentSocial, setCurrentSocial] = useState(null);
+  const [socialToDelete, setSocialToDelete] = useState(null);
+  const [formData, setFormData] = useState({ label: "", href: "", shortLabel: "" });
+
   useEffect(() => {
     async function fetchSettings() {
       try {

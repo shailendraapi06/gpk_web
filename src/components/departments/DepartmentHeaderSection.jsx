@@ -1,6 +1,9 @@
 import { DepartmentIcon } from "./DepartmentIcon";
 
 export function DepartmentHeaderSection({ department }) {
+  if (!department) return null;
+  const hodName = department.hod?.name || department.hodName || "Head of Department";
+
   return (
     <section className="department-detail-page__hero surface" aria-labelledby="department-detail-title">
       <div className="department-detail-page__hero-main">
@@ -8,7 +11,7 @@ export function DepartmentHeaderSection({ department }) {
         <h1 id="department-detail-title" className="department-detail-page__title">
           {department.name}
         </h1>
-        <p className="department-detail-page__intro">{department.introduction}</p>
+        <p className="department-detail-page__intro">{department.introduction || department.description}</p>
       </div>
 
       <div className="department-detail-page__hero-side" aria-label={`${department.name} highlights`}>
@@ -20,7 +23,7 @@ export function DepartmentHeaderSection({ department }) {
         <dl className="department-detail-page__meta">
           <div>
             <dt>HOD</dt>
-            <dd>{department.hod.name}</dd>
+            <dd>{hodName}</dd>
           </div>
           <div>
             <dt>Focus</dt>

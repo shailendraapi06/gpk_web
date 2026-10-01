@@ -17,7 +17,8 @@ import {
   MenuIcon,
   CloseIcon,
   AboutIcon,
-  AdmissionIcon
+  AdmissionIcon,
+  MessagesIcon
 } from "../components/admin/Icons";
 
 export function AdminLayout() {
@@ -102,7 +103,6 @@ export function AdminLayout() {
   }
 
   const menuItems = [
-    { label: "Dashboard", path: "/admin", icon: <DashboardIcon />, exact: true },
     { label: "Homepage Management", path: "/admin/homepage", icon: <SliderIcon /> },
     { label: "Footer Management", path: "/admin/footer", icon: <SettingsIcon /> },
     { label: "About Management", path: "/admin/about", icon: <AboutIcon /> },
@@ -110,7 +110,9 @@ export function AdminLayout() {
     { label: "Department Management", path: "/admin/departments", icon: <DepartmentsIcon /> },
     { label: "Faculty Management", path: "/admin/faculty", icon: <FacultyIcon /> },
     { label: "Placement Management", path: "/admin/placement", icon: <PlacementIcon /> },
-    { label: "Gallery Management", path: "/admin/gallery", icon: <GalleryIcon /> }
+    { label: "Gallery Management", path: "/admin/gallery", icon: <GalleryIcon /> },
+    { label: "Contact Inquiries", path: "/admin/contact", icon: <MessagesIcon /> },
+    { label: "Website Settings", path: "/admin/settings", icon: <SettingsIcon /> }
   ];
 
   // Get current page label

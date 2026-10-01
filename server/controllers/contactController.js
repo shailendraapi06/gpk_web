@@ -64,7 +64,8 @@ const formatMessage = (msg) => ({
 // @route   POST /api/contact
 // @access  Public
 export const createContactMessage = asyncHandler(async (req, res) => {
-  const { name, email, phone, subject, message } = req.body;
+  const name = req.body.name || req.body.fullName;
+  const { email, phone, subject, message } = req.body;
 
   // Validation
   if (!name || !name.trim()) {

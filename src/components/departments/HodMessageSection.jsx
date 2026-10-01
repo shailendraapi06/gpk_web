@@ -1,4 +1,7 @@
 export function HodMessageSection({ hod }) {
+  if (!hod || (!hod.name && !hod.message)) return null;
+  const photoSrc = typeof hod.photo === "object" ? hod.photo?.src : hod.photo || hod.photoUrl || "";
+
   return (
     <section className="department-detail-section" aria-labelledby="department-hod-title">
       <div className="department-detail-section__heading">
@@ -9,9 +12,11 @@ export function HodMessageSection({ hod }) {
       </div>
 
       <div className="department-hod surface">
-        <div className="department-hod__media">
-          <img src={hod.photo} alt={hod.name} loading="lazy" />
-        </div>
+        {photoSrc && (
+          <div className="department-hod__media">
+            <img src={photoSrc} alt={hod.name || "HOD"} loading="lazy" />
+          </div>
+        )}
 
         <div className="department-hod__content">
           <h3 className="department-hod__name">{hod.name}</h3>

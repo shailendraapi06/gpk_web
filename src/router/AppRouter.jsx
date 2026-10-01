@@ -1,9 +1,8 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { AdminLayout } from "../layouts/AdminLayout";
 import { MainLayout } from "../layouts/MainLayout";
 
 // Import Admin Pages
-import { AdminDashboardPage } from "../pages/admin/AdminDashboardPage";
 import { AdminHomepageMgmtPage } from "../pages/admin/AdminHomepageMgmtPage";
 import { AdminFooterMgmtPage } from "../pages/admin/AdminFooterMgmtPage";
 import { AdminAboutMgmtPage } from "../pages/admin/AdminAboutMgmtPage";
@@ -12,6 +11,9 @@ import { AdminDepartmentMgmtPage } from "../pages/admin/AdminDepartmentMgmtPage"
 import { AdminFacultyPage } from "../pages/admin/AdminFacultyPage";
 import { AdminPlacementPage } from "../pages/admin/AdminPlacementPage";
 import { AdminGalleryPage } from "../pages/admin/AdminGalleryPage";
+import { AdminContactMessagesPage } from "../pages/admin/AdminContactMessagesPage";
+import { AdminProfilePage } from "../pages/admin/AdminProfilePage";
+import { AdminSettingsPage } from "../pages/admin/AdminSettingsPage";
 
 import {
   AboutPage,
@@ -46,7 +48,8 @@ export function AppRouter() {
         </Route>
 
         <Route path="/admin" element={<AdminLayout />}>
-          <Route index element={<AdminDashboardPage />} />
+          <Route index element={<Navigate to="/admin/homepage" replace />} />
+          <Route path="dashboard" element={<Navigate to="/admin/homepage" replace />} />
           <Route path="homepage" element={<AdminHomepageMgmtPage />} />
           <Route path="footer" element={<AdminFooterMgmtPage />} />
           <Route path="about" element={<AdminAboutMgmtPage />} />
@@ -55,6 +58,9 @@ export function AppRouter() {
           <Route path="faculty" element={<AdminFacultyPage />} />
           <Route path="placement" element={<AdminPlacementPage />} />
           <Route path="gallery" element={<AdminGalleryPage />} />
+          <Route path="contact" element={<AdminContactMessagesPage />} />
+          <Route path="profile" element={<AdminProfilePage />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

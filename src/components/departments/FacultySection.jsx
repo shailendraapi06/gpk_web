@@ -1,6 +1,9 @@
 import { FacultyProfileCard } from "./FacultyProfileCard";
 
 export function FacultySection({ faculty }) {
+  const list = Array.isArray(faculty) ? faculty : [];
+  if (list.length === 0) return null;
+
   return (
     <section className="department-detail-section" aria-labelledby="department-faculty-title">
       <div className="department-detail-section__heading">
@@ -11,8 +14,8 @@ export function FacultySection({ faculty }) {
       </div>
 
       <div className="department-faculty-grid" role="list" aria-label="Department faculty profiles">
-        {faculty.map((member) => (
-          <div key={member.id} role="listitem">
+        {list.map((member, idx) => (
+          <div key={member.id || member._id || idx} role="listitem">
             <FacultyProfileCard faculty={member} />
           </div>
         ))}

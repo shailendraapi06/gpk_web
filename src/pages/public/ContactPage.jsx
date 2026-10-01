@@ -68,9 +68,17 @@ export function ContactPage() {
 
     try {
       setIsSubmitting(true);
+      const payload = {
+        name: (values.fullName || values.name || "").trim(),
+        email: (values.email || "").trim(),
+        phone: (values.phone || "").trim(),
+        subject: (values.subject || "").trim(),
+        message: (values.message || "").trim()
+      };
+
       const res = await apiRequest("/contact", {
         method: "POST",
-        body: JSON.stringify(values)
+        body: JSON.stringify(payload)
       });
 
       setFeedback({
