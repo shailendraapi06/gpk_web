@@ -75,6 +75,8 @@ const DEFAULT_ADMISSION_DATA = {
   ]
 };
 
+let inMemoryAdmissionData = JSON.parse(JSON.stringify(DEFAULT_ADMISSION_DATA));
+
 // Format Admission document for API output
 const formatAdmissionData = (doc) => {
   if (!doc) return DEFAULT_ADMISSION_DATA;
@@ -149,7 +151,7 @@ export const getAdmissions = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    admissions: DEFAULT_ADMISSION_DATA
+    admissions: inMemoryAdmissionData
   });
 });
 
@@ -158,6 +160,14 @@ export const getAdmissions = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const updateAdmissions = asyncHandler(async (req, res) => {
   const body = req.body;
+
+  if (body.prospectusUrl && typeof body.prospectusUrl === "string" && body.prospectusUrl.startsWith("data:")) {
+    const resFile = await uploadFileToCloudinary(body.prospectusUrl, "gpk_admissions");
+    body.prospectusUrl = resFile.url;
+  }
+
+  // Update in-memory fallback
+  Object.assign(inMemoryAdmissionData, body);
 
   let updatedDoc = null;
   if (mongoose.connection.readyState === 1) {
@@ -173,7 +183,7 @@ export const updateAdmissions = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Admission information updated successfully.",
-    admissions: updatedDoc ? formatAdmissionData(updatedDoc) : { ...DEFAULT_ADMISSION_DATA, ...body }
+    admissions: updatedDoc ? formatAdmissionData(updatedDoc) : inMemoryAdmissionData
   });
 });
 
@@ -186,26 +196,29 @@ export const updateCourses = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Courses array is required.");
   }
 
+  const mappedCourses = courses.map(c => ({
+    id: c.id || `c-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    course: c.course || c.courseName || "",
+    courseName: c.courseName || c.course || "",
+    duration: c.duration || "3 Years",
+    intake: String(c.intake || "60")
+  }));
+
+  inMemoryAdmissionData.coursesOffered = mappedCourses;
+
   let updatedDoc = null;
   if (mongoose.connection.readyState === 1) {
     let doc = await Admission.findOne({ isActive: true });
     if (!doc) doc = new Admission(DEFAULT_ADMISSION_DATA);
 
-    doc.coursesOffered = courses.map(c => ({
-      id: c.id || `c-${Date.now()}`,
-      course: c.course || c.courseName || "",
-      courseName: c.courseName || c.course || "",
-      duration: c.duration || "3 Years",
-      intake: String(c.intake || "60")
-    }));
-
+    doc.coursesOffered = mappedCourses;
     updatedDoc = await doc.save();
   }
 
   res.status(200).json({
     success: true,
     message: "Courses offered updated successfully.",
-    courses: updatedDoc ? formatAdmissionData(updatedDoc).coursesOffered : courses
+    courses: updatedDoc ? formatAdmissionData(updatedDoc).coursesOffered : mappedCourses
   });
 });
 
@@ -217,6 +230,8 @@ export const updateEligibility = asyncHandler(async (req, res) => {
   if (!Array.isArray(eligibility)) {
     throw new ApiError(400, "Eligibility array is required.");
   }
+
+  inMemoryAdmissionData.eligibilityCriteria = eligibility;
 
   let updatedDoc = null;
   if (mongoose.connection.readyState === 1) {
@@ -243,6 +258,8 @@ export const updateDocuments = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Documents array is required.");
   }
 
+  inMemoryAdmissionData.requiredDocuments = documents;
+
   let updatedDoc = null;
   if (mongoose.connection.readyState === 1) {
     let doc = await Admission.findOne({ isActive: true });
@@ -268,25 +285,28 @@ export const updateFeeStructure = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Fees array is required.");
   }
 
+  const mappedFees = fees.map(f => ({
+    id: f.id || `fee-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    category: f.category || "",
+    amount: f.amount || "",
+    notes: f.notes || ""
+  }));
+
+  inMemoryAdmissionData.feeStructure = mappedFees;
+
   let updatedDoc = null;
   if (mongoose.connection.readyState === 1) {
     let doc = await Admission.findOne({ isActive: true });
     if (!doc) doc = new Admission(DEFAULT_ADMISSION_DATA);
 
-    doc.feeStructure = fees.map(f => ({
-      id: f.id || `fee-${Date.now()}`,
-      category: f.category || "",
-      amount: f.amount || "",
-      notes: f.notes || ""
-    }));
-
+    doc.feeStructure = mappedFees;
     updatedDoc = await doc.save();
   }
 
   res.status(200).json({
     success: true,
     message: "Fee structure updated successfully.",
-    fees: updatedDoc ? formatAdmissionData(updatedDoc).feeStructure : fees
+    fees: updatedDoc ? formatAdmissionData(updatedDoc).feeStructure : mappedFees
   });
 });
 
@@ -304,6 +324,8 @@ export const updateProspectus = asyncHandler(async (req, res) => {
     const uploadRes = await uploadFileToCloudinary(finalUrl, "gpk_admissions");
     finalUrl = uploadRes.url;
   }
+
+  inMemoryAdmissionData.prospectusUrl = finalUrl;
 
   let updatedDoc = null;
   if (mongoose.connection.readyState === 1) {

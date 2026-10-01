@@ -78,6 +78,8 @@ const DEFAULT_FACULTIES = [
   }
 ];
 
+let inMemoryFaculties = JSON.parse(JSON.stringify(DEFAULT_FACULTIES));
+
 const formatFaculty = (f) => ({
   id: f._id ? f._id.toString() : f.id,
   _id: f._id ? f._id.toString() : f.id,
@@ -150,7 +152,7 @@ export const getFaculties = asyncHandler(async (req, res) => {
   }
 
   // Fallback response
-  let facultiesList = DEFAULT_FACULTIES.map(formatFaculty);
+  let facultiesList = inMemoryFaculties.map(formatFaculty);
 
   if (department && department !== "All") {
     facultiesList = facultiesList.filter(f => f.departmentName.toLowerCase().includes(department.toLowerCase()));
@@ -188,7 +190,7 @@ export const getFacultyById = asyncHandler(async (req, res) => {
     }
   }
 
-  const fallback = DEFAULT_FACULTIES.find(f => f.id === id || f._id === id);
+  const fallback = inMemoryFaculties.find(f => f.id === id || f._id === id);
   if (fallback) {
     return res.status(200).json({
       success: true,
@@ -244,24 +246,28 @@ export const createFaculty = asyncHandler(async (req, res) => {
     createdId = newFaculty._id.toString();
   }
 
+  const facObj = {
+    id: createdId,
+    _id: createdId,
+    name,
+    designation,
+    department: deptName,
+    departmentName: deptName,
+    qualification: qualification || "B.Tech.",
+    experience: experience || "0 Years",
+    email: email || `${name.toLowerCase().replace(/[^a-z0-9]/g, ".")}@gpk.ac.in`,
+    phone: phone || "",
+    photo: imgUrl,
+    photoUrl: imgUrl,
+    profileUrl: cvUrl || "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+  };
+
+  inMemoryFaculties.unshift(facObj);
+
   res.status(201).json({
     success: true,
     message: "Faculty member added successfully.",
-    faculty: {
-      id: createdId,
-      _id: createdId,
-      name,
-      designation,
-      department: deptName,
-      departmentName: deptName,
-      qualification: qualification || "B.Tech.",
-      experience: experience || "0 Years",
-      email: email || `${name.toLowerCase().replace(/[^a-z0-9]/g, ".")}@gpk.ac.in`,
-      phone: phone || "",
-      photo: imgUrl,
-      photoUrl: imgUrl,
-      profileUrl: cvUrl || "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
-    }
+    faculty: facObj
   });
 });
 
@@ -286,6 +292,26 @@ export const updateFaculty = asyncHandler(async (req, res) => {
   }
 
   let updatedFac = null;
+
+  inMemoryFaculties = inMemoryFaculties.map(f => {
+    if (f.id === id || f._id === id) {
+      return {
+        ...f,
+        name: name || f.name,
+        designation: designation || f.designation,
+        department: deptName || f.department || f.departmentName,
+        departmentName: deptName || f.departmentName,
+        qualification: qualification !== undefined ? qualification : f.qualification,
+        experience: experience !== undefined ? experience : f.experience,
+        email: email || f.email,
+        phone: phone !== undefined ? phone : f.phone,
+        photo: imgUrl !== undefined ? imgUrl : f.photo,
+        photoUrl: imgUrl !== undefined ? imgUrl : f.photoUrl,
+        profileUrl: cvUrl !== undefined ? cvUrl : f.profileUrl
+      };
+    }
+    return f;
+  });
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     const f = await Faculty.findById(id);
@@ -316,6 +342,8 @@ export const updateFaculty = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const deleteFaculty = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  inMemoryFaculties = inMemoryFaculties.filter(f => f.id !== id && f._id !== id);
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     await Faculty.findByIdAndDelete(id);

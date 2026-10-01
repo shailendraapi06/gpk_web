@@ -46,6 +46,8 @@ const DEFAULT_MESSAGES = [
   }
 ];
 
+let inMemoryContactMessages = JSON.parse(JSON.stringify(DEFAULT_MESSAGES));
+
 const formatMessage = (msg) => ({
   id: msg._id ? msg._id.toString() : msg.id || `msg-${Math.random()}`,
   _id: msg._id ? msg._id.toString() : undefined,
@@ -97,20 +99,26 @@ export const createContactMessage = asyncHandler(async (req, res) => {
     });
   }
 
+  const newMsgObj = createdMsg ? formatMessage(createdMsg) : {
+    id: `msg-${Date.now()}`,
+    _id: `msg-${Date.now()}`,
+    name: name.trim(),
+    email: email.trim(),
+    phone: phone ? phone.trim() : "",
+    subject: subject.trim(),
+    message: message.trim(),
+    body: message.trim(),
+    status: "unread",
+    date: new Date().toISOString().split("T")[0],
+    createdAt: new Date()
+  };
+
+  inMemoryContactMessages.unshift(newMsgObj);
+
   res.status(201).json({
     success: true,
     message: "Thank you! Your inquiry message has been submitted successfully.",
-    data: createdMsg ? formatMessage(createdMsg) : {
-      id: `msg-${Date.now()}`,
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone ? phone.trim() : "",
-      subject: subject.trim(),
-      message: message.trim(),
-      body: message.trim(),
-      status: "unread",
-      date: new Date().toISOString().split("T")[0]
-    }
+    data: newMsgObj
   });
 });
 
@@ -148,8 +156,8 @@ export const getContactMessages = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    count: DEFAULT_MESSAGES.length,
-    data: DEFAULT_MESSAGES.map(formatMessage)
+    count: inMemoryContactMessages.length,
+    data: inMemoryContactMessages.map(formatMessage)
   });
 });
 
@@ -170,7 +178,7 @@ export const getContactMessageById = asyncHandler(async (req, res) => {
     });
   }
 
-  const fallbackMsg = DEFAULT_MESSAGES.find(m => m.id === id);
+  const fallbackMsg = inMemoryContactMessages.find(m => m.id === id || m._id === id);
   if (!fallbackMsg) {
     throw new ApiError(404, "Message not found.");
   }
@@ -191,6 +199,13 @@ export const updateContactMessageStatus = asyncHandler(async (req, res) => {
   if (!status || !["unread", "read", "replied", "archived"].includes(status)) {
     throw new ApiError(400, "Valid status ('unread', 'read', 'replied', 'archived') is required.");
   }
+
+  inMemoryContactMessages = inMemoryContactMessages.map(m => {
+    if (m.id === id || m._id === id) {
+      return { ...m, status };
+    }
+    return m;
+  });
 
   let updatedMsg = null;
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
@@ -214,6 +229,8 @@ export const updateContactMessageStatus = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const deleteContactMessage = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  inMemoryContactMessages = inMemoryContactMessages.filter(m => m.id !== id && m._id !== id);
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     const msg = await ContactMessage.findById(id);

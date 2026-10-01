@@ -50,6 +50,8 @@ const DEFAULT_NOTICES = [
   }
 ];
 
+let inMemoryNotices = JSON.parse(JSON.stringify(DEFAULT_NOTICES));
+
 // @desc    Get all notices
 // @route   GET /api/notices
 // @access  Public
@@ -103,8 +105,11 @@ export const getNotices = asyncHandler(async (req, res) => {
     }
   }
 
-  // Fallback response if DB offline or empty
-  let notices = [...DEFAULT_NOTICES];
+  // Fallback response using inMemoryNotices
+  let notices = [...inMemoryNotices];
+  if (category && category !== "All") {
+    notices = notices.filter(n => n.category?.toLowerCase() === category.toLowerCase());
+  }
   if (search) {
     notices = notices.filter(
       (n) =>
@@ -147,7 +152,7 @@ export const getNoticeById = asyncHandler(async (req, res) => {
     }
   }
 
-  const fallback = DEFAULT_NOTICES.find((n) => n.id === id || n._id === id);
+  const fallback = inMemoryNotices.find((n) => n.id === id || n._id === id);
   if (!fallback) {
     throw new ApiError(404, "Notice not found.");
   }
@@ -190,25 +195,28 @@ export const createNotice = asyncHandler(async (req, res) => {
   }
 
   const createdId = newNotice ? newNotice._id.toString() : `notice-${Date.now()}`;
+  const noticeObj = {
+    id: createdId,
+    _id: createdId,
+    title,
+    description: description || "",
+    publishDate: noticeData.date,
+    date: noticeData.date,
+    isNew: noticeData.isNewNotice,
+    isNewNotice: noticeData.isNewNotice,
+    category: noticeData.category,
+    link: noticeData.link,
+    actionLabel: "View PDF",
+    actionHref: noticeData.pdfUrl || noticeData.link,
+    pdfUrl: noticeData.pdfUrl
+  };
+
+  inMemoryNotices.unshift(noticeObj);
 
   res.status(201).json({
     success: true,
     message: "Notice published successfully.",
-    notice: {
-      id: createdId,
-      _id: createdId,
-      title,
-      description: description || "",
-      publishDate: noticeData.date,
-      date: noticeData.date,
-      isNew: noticeData.isNewNotice,
-      isNewNotice: noticeData.isNewNotice,
-      category: noticeData.category,
-      link: noticeData.link,
-      actionLabel: "View PDF",
-      actionHref: noticeData.pdfUrl || noticeData.link,
-      pdfUrl: noticeData.pdfUrl
-    }
+    notice: noticeObj
   });
 });
 
@@ -226,6 +234,25 @@ export const updateNotice = asyncHandler(async (req, res) => {
   }
 
   let updatedNotice = null;
+
+  inMemoryNotices = inMemoryNotices.map(n => {
+    if (n.id === id || n._id === id) {
+      return {
+        ...n,
+        title: title || n.title,
+        description: description !== undefined ? description : n.description,
+        category: category || n.category,
+        date: date || publishDate || n.date,
+        publishDate: date || publishDate || n.publishDate,
+        isNew: isNewNotice !== undefined ? isNewNotice : isNew !== undefined ? isNew : n.isNew,
+        isNewNotice: isNewNotice !== undefined ? isNewNotice : isNew !== undefined ? isNew : n.isNewNotice,
+        pdfUrl: finalPdfUrl || n.pdfUrl,
+        actionHref: finalPdfUrl || n.actionHref,
+        link: link || finalPdfUrl || n.link
+      };
+    }
+    return n;
+  });
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     const notice = await Notice.findById(id);
@@ -265,6 +292,8 @@ export const updateNotice = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const deleteNotice = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  inMemoryNotices = inMemoryNotices.filter(n => n.id !== id && n._id !== id);
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     await Notice.findByIdAndDelete(id);

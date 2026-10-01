@@ -693,8 +693,29 @@ export function AdminHomepageMgmtPage() {
           </div>
 
           <div className="admin-form-group">
-            <label className="admin-label font-bold">Principal Photo URL</label>
-            <input type="url" className="admin-input" value={principal.photo.src} onChange={(e) => setPrincipal({ ...principal, photo: { src: e.target.value } })} required />
+            <label className="admin-label font-bold">Principal Photo</label>
+            <input
+              type="file"
+              accept="image/*"
+              className="admin-input"
+              style={{ marginBottom: "0.5rem" }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => setPrincipal(prev => ({ ...prev, photo: { src: reader.result } }));
+                  reader.readAsDataURL(file);
+                }
+              }}
+            />
+            <input
+              type="text"
+              className="admin-input"
+              value={principal.photo.src}
+              onChange={(e) => setPrincipal({ ...principal, photo: { src: e.target.value } })}
+              placeholder="Or paste image URL (https://...)"
+              required
+            />
           </div>
 
           <div className="admin-form-group">
@@ -802,8 +823,29 @@ export function AdminHomepageMgmtPage() {
             <form onSubmit={handleHeroSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
               <div className="admin-modal__body">
                 <div className="admin-form-group">
-                  <label className="admin-label">Image URL *</label>
-                  <input type="url" className="admin-input" value={heroFormData.src} onChange={(e) => setHeroFormData({ src: e.target.value })} placeholder="https://example.com/slide.jpg" required />
+                  <label className="admin-label">Slide Image File or URL *</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="admin-input"
+                    style={{ marginBottom: "0.5rem" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => setHeroFormData({ src: reader.result });
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={heroFormData.src}
+                    onChange={(e) => setHeroFormData({ src: e.target.value })}
+                    placeholder="Or paste image URL (https://...)"
+                    required
+                  />
                 </div>
               </div>
               <div className="admin-form-actions" style={{ flexShrink: 0, borderTop: "1px solid var(--color-neutral-100)" }}>
@@ -834,8 +876,29 @@ export function AdminHomepageMgmtPage() {
                   <input type="text" className="admin-input" value={leaderFormData.designation} onChange={(e) => setLeaderFormData({ ...leaderFormData, designation: e.target.value })} required />
                 </div>
                 <div className="admin-form-group">
-                  <label className="admin-label font-bold">Leader Photo Image URL *</label>
-                  <input type="url" className="admin-input" value={leaderFormData.src} onChange={(e) => setLeaderFormData({ ...leaderFormData, src: e.target.value })} required />
+                  <label className="admin-label font-bold">Leader Photo File or URL *</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="admin-input"
+                    style={{ marginBottom: "0.5rem" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => setLeaderFormData(prev => ({ ...prev, src: reader.result }));
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={leaderFormData.src}
+                    onChange={(e) => setLeaderFormData({ ...leaderFormData, src: e.target.value })}
+                    placeholder="Or paste photo URL (https://...)"
+                    required
+                  />
                 </div>
               </div>
               <div className="admin-form-actions" style={{ flexShrink: 0, borderTop: "1px solid var(--color-neutral-100)" }}>
@@ -881,8 +944,28 @@ export function AdminHomepageMgmtPage() {
                     <input type="text" className="admin-input" value={noticeFormData.actionLabel} onChange={(e) => setNoticeFormData({ ...noticeFormData, actionLabel: e.target.value })} />
                   </div>
                   <div className="admin-form-group">
-                    <label className="admin-label">Action PDF Attachment URL</label>
-                    <input type="url" className="admin-input" value={noticeFormData.actionHref} onChange={(e) => setNoticeFormData({ ...noticeFormData, actionHref: e.target.value })} placeholder="https://example.com/syllabus.pdf" />
+                    <label className="admin-label">Action PDF Document or URL</label>
+                    <input
+                      type="file"
+                      accept=".pdf,image/*"
+                      className="admin-input"
+                      style={{ marginBottom: "0.5rem" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setNoticeFormData(prev => ({ ...prev, actionHref: reader.result }));
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <input
+                      type="text"
+                      className="admin-input"
+                      value={noticeFormData.actionHref}
+                      onChange={(e) => setNoticeFormData({ ...noticeFormData, actionHref: e.target.value })}
+                      placeholder="Or paste document URL (https://...)"
+                    />
                   </div>
                 </div>
               </div>
@@ -910,8 +993,29 @@ export function AdminHomepageMgmtPage() {
                   <input type="text" className="admin-input" value={recruiterFormData.name} onChange={(e) => setRecruiterFormData({ ...recruiterFormData, name: e.target.value })} required />
                 </div>
                 <div className="admin-form-group">
-                  <label className="admin-label">Logo Image URL *</label>
-                  <input type="url" className="admin-input" value={recruiterFormData.logo} onChange={(e) => setRecruiterFormData({ ...recruiterFormData, logo: e.target.value })} placeholder="https://example.com/logo.png" required />
+                  <label className="admin-label">Logo File or URL *</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="admin-input"
+                    style={{ marginBottom: "0.5rem" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => setRecruiterFormData(prev => ({ ...prev, logo: reader.result }));
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="admin-input"
+                    value={recruiterFormData.logo}
+                    onChange={(e) => setRecruiterFormData({ ...recruiterFormData, logo: e.target.value })}
+                    placeholder="Or paste logo URL (https://...)"
+                    required
+                  />
                 </div>
               </div>
               <div className="admin-form-actions" style={{ flexShrink: 0, borderTop: "1px solid var(--color-neutral-100)" }}>
@@ -949,14 +1053,35 @@ export function AdminHomepageMgmtPage() {
                     </select>
                   </div>
                   <div className="admin-form-group">
-                    <label className="admin-label">Image Source URL *</label>
-                    <input type="url" className="admin-input" value={galleryFormData.src} onChange={(e) => setGalleryFormData({ ...galleryFormData, src: e.target.value })} placeholder="https://example.com/photo.jpg" required />
+                    <label className="admin-label">Image File or URL *</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="admin-input"
+                      style={{ marginBottom: "0.5rem" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => setGalleryFormData(prev => ({ ...prev, src: reader.result }));
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <input
+                      type="text"
+                      className="admin-input"
+                      value={galleryFormData.src}
+                      onChange={(e) => setGalleryFormData({ ...galleryFormData, src: e.target.value })}
+                      placeholder="Or paste image URL"
+                      required
+                    />
                   </div>
                 </div>
               </div>
               <div className="admin-form-actions" style={{ flexShrink: 0, borderTop: "1px solid var(--color-neutral-100)" }}>
                 <button type="button" className="admin-btn admin-btn--secondary" onClick={() => setIsGalleryFormOpen(false)}>Cancel</button>
-                <button type="submit" className="admin-btn admin-btn--primary">Save Image</button>
+                <button type="submit" className="admin-btn admin-btn--primary">Save Gallery Item</button>
               </div>
             </form>
           </div>

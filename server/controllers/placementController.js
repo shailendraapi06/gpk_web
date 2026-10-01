@@ -68,6 +68,8 @@ const DEFAULT_PLACEMENT_DATA = {
   ]
 };
 
+let inMemoryPlacementData = JSON.parse(JSON.stringify(DEFAULT_PLACEMENT_DATA));
+
 // Format document for output
 const formatPlacementData = (doc) => {
   if (!doc) return DEFAULT_PLACEMENT_DATA;
@@ -179,7 +181,7 @@ export const getPlacement = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    placement: DEFAULT_PLACEMENT_DATA
+    placement: inMemoryPlacementData
   });
 });
 
@@ -188,6 +190,8 @@ export const getPlacement = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const updatePlacement = asyncHandler(async (req, res) => {
   const body = req.body;
+
+  Object.assign(inMemoryPlacementData, body);
 
   let updatedDoc = null;
   if (mongoose.connection.readyState === 1) {
@@ -201,7 +205,7 @@ export const updatePlacement = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Placement page information updated successfully.",
-    placement: updatedDoc ? formatPlacementData(updatedDoc) : { ...DEFAULT_PLACEMENT_DATA, ...body }
+    placement: updatedDoc ? formatPlacementData(updatedDoc) : inMemoryPlacementData
   });
 });
 
@@ -219,6 +223,32 @@ export const updateOverviewAndOfficer = asyncHandler(async (req, res) => {
   let tpoPhoto = (typeof tpo?.photo === "object" && tpo.photo?.src) ? tpo.photo.src : tpo?.photo;
   if (tpoPhoto && tpoPhoto.startsWith("data:")) {
     tpoPhoto = await uploadToCloudinary(tpoPhoto, "gpk_placements");
+  }
+
+  if (overview || overviewDesc) {
+    inMemoryPlacementData.placementOverview = {
+      title: overview?.title || inMemoryPlacementData.placementOverview.title,
+      image: overviewImg || inMemoryPlacementData.placementOverview.image,
+      imageAlt: overview?.imageAlt || inMemoryPlacementData.placementOverview.imageAlt,
+      description: overviewDesc
+        ? (Array.isArray(overviewDesc) ? overviewDesc : overviewDesc.split("\n\n").filter(Boolean))
+        : inMemoryPlacementData.placementOverview.description
+    };
+  }
+
+  if (tpo) {
+    inMemoryPlacementData.placementOfficer = {
+      name: tpo.name || inMemoryPlacementData.placementOfficer.name,
+      designation: tpo.designation || inMemoryPlacementData.placementOfficer.designation,
+      photo: tpoPhoto || inMemoryPlacementData.placementOfficer.photo,
+      message: tpo.message || inMemoryPlacementData.placementOfficer.message,
+      contact: {
+        email: tpo.email || inMemoryPlacementData.placementOfficer.contact.email,
+        phone: tpo.phone || inMemoryPlacementData.placementOfficer.contact.phone,
+        officeHours: tpo.officeHours || inMemoryPlacementData.placementOfficer.contact.officeHours
+      },
+      profileUrl: tpo.profileUrl || inMemoryPlacementData.placementOfficer.profileUrl || ""
+    };
   }
 
   let updatedDoc = null;
@@ -258,7 +288,7 @@ export const updateOverviewAndOfficer = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Placement cell and officer profile saved successfully.",
-    placement: updatedDoc ? formatPlacementData(updatedDoc) : DEFAULT_PLACEMENT_DATA
+    placement: updatedDoc ? formatPlacementData(updatedDoc) : inMemoryPlacementData
   });
 });
 
@@ -278,13 +308,15 @@ export const updateRecruiters = asyncHandler(async (req, res) => {
         logoUrl = await uploadToCloudinary(logoUrl, "gpk_recruiters");
       }
       return {
-        id: r.id || `rec-${Date.now()}`,
+        id: r.id || `rec-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         name: r.name || "",
         logo: logoUrl,
         logoUrl: logoUrl
       };
     })
   );
+
+  inMemoryPlacementData.recruiters = processedRecruiters;
 
   let updatedDoc = null;
   if (mongoose.connection.readyState === 1) {
@@ -311,26 +343,29 @@ export const updateNotices = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Notices array is required.");
   }
 
+  const mappedNotices = notices.map(n => ({
+    id: n.id || `pn-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    date: n.date || "",
+    title: n.title || "",
+    actionLabel: n.actionLabel || "View PDF",
+    actionUrl: n.actionUrl || ""
+  }));
+
+  inMemoryPlacementData.placementNotices = mappedNotices;
+
   let updatedDoc = null;
   if (mongoose.connection.readyState === 1) {
     let doc = await Placement.findOne({ isActive: true });
     if (!doc) doc = new Placement(DEFAULT_PLACEMENT_DATA);
 
-    doc.placementNotices = notices.map(n => ({
-      id: n.id || `pn-${Date.now()}`,
-      date: n.date || "",
-      title: n.title || "",
-      actionLabel: n.actionLabel || "View PDF",
-      actionUrl: n.actionUrl || ""
-    }));
-
+    doc.placementNotices = mappedNotices;
     updatedDoc = await doc.save();
   }
 
   res.status(200).json({
     success: true,
     message: "Placement notices updated successfully.",
-    notices: updatedDoc ? formatPlacementData(updatedDoc).placementNotices : notices
+    notices: updatedDoc ? formatPlacementData(updatedDoc).placementNotices : mappedNotices
   });
 });
 
@@ -343,27 +378,30 @@ export const updateDrives = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Drives array is required.");
   }
 
+  const mappedDrives = drives.map(d => ({
+    id: d.id || `drv-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    company: d.company || "",
+    date: d.date || "",
+    eligibility: d.eligibility || "",
+    status: d.status || "Upcoming",
+    actionLabel: d.actionLabel || "Apply",
+    actionUrl: d.actionUrl || ""
+  }));
+
+  inMemoryPlacementData.placementDrives = mappedDrives;
+
   let updatedDoc = null;
   if (mongoose.connection.readyState === 1) {
     let doc = await Placement.findOne({ isActive: true });
     if (!doc) doc = new Placement(DEFAULT_PLACEMENT_DATA);
 
-    doc.placementDrives = drives.map(d => ({
-      id: d.id || `drv-${Date.now()}`,
-      company: d.company || "",
-      date: d.date || "",
-      eligibility: d.eligibility || "",
-      status: d.status || "Upcoming",
-      actionLabel: d.actionLabel || "Apply",
-      actionUrl: d.actionUrl || ""
-    }));
-
+    doc.placementDrives = mappedDrives;
     updatedDoc = await doc.save();
   }
 
   res.status(200).json({
     success: true,
     message: "Recruitment drives updated successfully.",
-    drives: updatedDoc ? formatPlacementData(updatedDoc).placementDrives : drives
+    drives: updatedDoc ? formatPlacementData(updatedDoc).placementDrives : mappedDrives
   });
 });

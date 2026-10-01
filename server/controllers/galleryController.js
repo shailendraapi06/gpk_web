@@ -88,6 +88,12 @@ const DEFAULT_GALLERY_ITEMS = [
   }
 ];
 
+let inMemoryGalleryItems = DEFAULT_GALLERY_ITEMS.map((item, idx) => ({
+  ...item,
+  id: `gallery-${idx + 1}`,
+  _id: `gallery-${idx + 1}`
+}));
+
 const formatItem = (item) => ({
   id: item._id ? item._id.toString() : item.id || `gallery-${Math.random()}`,
   _id: item._id ? item._id.toString() : undefined,
@@ -138,7 +144,7 @@ export const getGalleryItems = asyncHandler(async (req, res) => {
   }
 
   // Fallback to in-memory filter
-  let fallback = DEFAULT_GALLERY_ITEMS.map((item, idx) => ({ ...item, id: `gallery-${idx + 1}` }));
+  let fallback = [...inMemoryGalleryItems];
   if (category && category !== "All") {
     fallback = fallback.filter(i => i.category === category);
   }
@@ -170,6 +176,14 @@ export const getGalleryItemById = asyncHandler(async (req, res) => {
     return res.status(200).json({
       success: true,
       item: formatItem(item)
+    });
+  }
+
+  const fallback = inMemoryGalleryItems.find(i => i.id === id || i._id === id);
+  if (fallback) {
+    return res.status(200).json({
+      success: true,
+      item: formatItem(fallback)
     });
   }
 
@@ -216,20 +230,26 @@ export const createGalleryItem = asyncHandler(async (req, res) => {
     });
   }
 
+  const createdId = createdItem ? createdItem._id.toString() : `gallery-${Date.now()}`;
+  const galObj = {
+    id: createdId,
+    _id: createdId,
+    title: title.trim(),
+    category: category.trim(),
+    type,
+    src: finalSrc,
+    thumbnail: finalThumbnail,
+    embedUrl: embedUrl || "",
+    description: description || "",
+    featured: Boolean(featured)
+  };
+
+  inMemoryGalleryItems.unshift(galObj);
+
   res.status(201).json({
     success: true,
     message: "Gallery asset created successfully.",
-    item: createdItem ? formatItem(createdItem) : {
-      id: `gallery-${Date.now()}`,
-      title,
-      category,
-      type,
-      src: finalSrc,
-      thumbnail: finalThumbnail,
-      embedUrl: embedUrl || "",
-      description: description || "",
-      featured: Boolean(featured)
-    }
+    item: galObj
   });
 });
 
@@ -253,6 +273,24 @@ export const updateGalleryItem = asyncHandler(async (req, res) => {
   }
 
   let updatedItem = null;
+
+  inMemoryGalleryItems = inMemoryGalleryItems.map(item => {
+    if (item.id === id || item._id === id) {
+      return {
+        ...item,
+        title: title !== undefined ? title.trim() : item.title,
+        category: category !== undefined ? category.trim() : item.category,
+        type: type !== undefined ? type : item.type,
+        src: finalSrc !== undefined ? finalSrc : item.src,
+        thumbnail: finalThumbnail !== undefined ? finalThumbnail : item.thumbnail,
+        embedUrl: embedUrl !== undefined ? embedUrl : item.embedUrl,
+        description: description !== undefined ? description : item.description,
+        featured: featured !== undefined ? Boolean(featured) : item.featured
+      };
+    }
+    return item;
+  });
+
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     const item = await Gallery.findById(id);
     if (!item) {
@@ -293,6 +331,8 @@ export const updateGalleryItem = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const deleteGalleryItem = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  inMemoryGalleryItems = inMemoryGalleryItems.filter(i => i.id !== id && i._id !== id);
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     const item = await Gallery.findById(id);

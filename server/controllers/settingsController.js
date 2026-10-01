@@ -37,17 +37,43 @@ const DEFAULT_SETTINGS = {
     text: "Admissions open for Academic Session 2026-27. Apply via JEECUP.",
     isVisible: true,
     link: "/admissions"
+  },
+  about: {
+    highlights: [
+      { id: "hl-1", label: "Established", value: "1958" },
+      { id: "hl-2", label: "Departments", value: "15+" },
+      { id: "hl-3", label: "Faculty", value: "50+" },
+      { id: "hl-4", label: "Students", value: "2000+" }
+    ],
+    journey: [
+      { id: "j-1", year: "1958", title: "Institute Foundation", description: "Government Polytechnic Kanpur was established to strengthen technical education and workforce development in Uttar Pradesh." },
+      { id: "j-2", year: "1980s", title: "Academic Expansion", description: "The institution expanded its diploma offerings and improved its practical learning infrastructure for core technical disciplines." },
+      { id: "j-3", year: "2000s", title: "Modernization of Facilities", description: "Laboratories, workshops, and campus learning resources were gradually modernized to support evolving curriculum standards." },
+      { id: "j-4", year: "Today", title: "Industry-Ready Education", description: "The college continues to focus on employability, applied skills, academic discipline, and student development in a modern technical environment." }
+    ],
+    infrastructure: [
+      { id: "infra-1", title: "Library", description: "The library supports academic development with technical books, reference materials, study resources, and quiet reading spaces for students.", image: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?q=80&w=400&auto=format&fit=crop" },
+      { id: "infra-2", title: "Laboratories", description: "Department laboratories enable applied learning, experimentation, and practical understanding across engineering and technical subjects.", image: "https://images.unsplash.com/photo-1573164713988-8665fc963095?q=80&w=400&auto=format&fit=crop" },
+      { id: "infra-3", title: "Workshops", description: "Hands-on workshops provide essential exposure to tools, processes, fabrication practices, and discipline-oriented technical exercises.", image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?q=80&w=400&auto=format&fit=crop" }
+    ],
+    aboutPageImage: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=800&auto=format&fit=crop",
+    recognitions: [
+      { id: "approval-1", title: "Government Polytechnic Kanpur", description: "Institutional identity representing a long-standing government technical education presence in Kanpur.", logo: "https://images.unsplash.com/photo-1542744094-3a31f103e35f?q=80&w=150&auto=format&fit=crop" },
+      { id: "approval-2", title: "Technical Education Framework", description: "The college functions within state technical education systems and established academic governance structures.", logo: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=150&auto=format&fit=crop" }
+    ]
   }
 };
 
+let inMemorySettings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+
 const formatSettings = (doc) => {
-  if (!doc) return DEFAULT_SETTINGS;
+  if (!doc) return inMemorySettings;
   const obj = typeof doc.toObject === "function" ? doc.toObject() : doc;
   return {
-    ...DEFAULT_SETTINGS,
+    ...inMemorySettings,
     ...obj,
     id: obj._id ? obj._id.toString() : "settings-1",
-    primaryEmail: obj.email || obj.primaryEmail || DEFAULT_SETTINGS.primaryEmail
+    primaryEmail: obj.email || obj.primaryEmail || inMemorySettings.primaryEmail
   };
 };
 
@@ -59,7 +85,7 @@ export const getSettings = asyncHandler(async (req, res) => {
     let settings = await WebsiteSettings.findOne();
     if (!settings) {
       try {
-        settings = await WebsiteSettings.create(DEFAULT_SETTINGS);
+        settings = await WebsiteSettings.create(inMemorySettings);
       } catch (err) {
         console.warn("Could not seed default website settings:", err.message);
       }
@@ -72,7 +98,7 @@ export const getSettings = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     success: true,
-    settings: DEFAULT_SETTINGS
+    settings: inMemorySettings
   });
 });
 
@@ -87,15 +113,26 @@ export const updateSettings = asyncHandler(async (req, res) => {
     updateFields.logoUrl = await uploadToCloudinary(updateFields.logoUrl, "gpk_branding");
   }
 
+  // Handle about image upload if base64
+  if (updateFields.about?.aboutPageImage && updateFields.about.aboutPageImage.startsWith("data:")) {
+    updateFields.about.aboutPageImage = await uploadToCloudinary(updateFields.about.aboutPageImage, "gpk_about");
+  }
+
   if (updateFields.primaryEmail && !updateFields.email) {
     updateFields.email = updateFields.primaryEmail;
   }
+
+  // Always keep in-memory fallback updated
+  if (updateFields.about) {
+    inMemorySettings.about = { ...inMemorySettings.about, ...updateFields.about };
+  }
+  Object.assign(inMemorySettings, updateFields);
 
   let updatedSettings = null;
   if (mongoose.connection.readyState === 1) {
     let settings = await WebsiteSettings.findOne();
     if (!settings) {
-      settings = new WebsiteSettings({ ...DEFAULT_SETTINGS, ...updateFields });
+      settings = new WebsiteSettings({ ...inMemorySettings, ...updateFields });
     } else {
       Object.assign(settings, updateFields);
     }
@@ -105,7 +142,7 @@ export const updateSettings = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Website settings updated successfully.",
-    settings: updatedSettings ? formatSettings(updatedSettings) : { ...DEFAULT_SETTINGS, ...updateFields }
+    settings: updatedSettings ? formatSettings(updatedSettings) : inMemorySettings
   });
 });
 

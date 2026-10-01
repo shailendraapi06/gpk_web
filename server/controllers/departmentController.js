@@ -209,6 +209,8 @@ const DEFAULT_DEPARTMENTS = [
   }
 ];
 
+let inMemoryDepartments = JSON.parse(JSON.stringify(DEFAULT_DEPARTMENTS));
+
 // Format DB department for response
 const formatDepartment = (dept) => ({
   id: dept._id ? dept._id.toString() : dept.id,
@@ -302,8 +304,8 @@ export const getDepartments = asyncHandler(async (req, res) => {
   // Fallback
   res.status(200).json({
     success: true,
-    count: DEFAULT_DEPARTMENTS.length,
-    departments: DEFAULT_DEPARTMENTS.map(formatDepartment)
+    count: inMemoryDepartments.length,
+    departments: inMemoryDepartments.map(formatDepartment)
   });
 });
 
@@ -360,7 +362,7 @@ export const getDepartmentBySlug = asyncHandler(async (req, res) => {
   }
 
   // Fallback lookup
-  const fallback = DEFAULT_DEPARTMENTS.find(d => d.slug === slug.toLowerCase() || d.id === slug || d._id === slug);
+  const fallback = inMemoryDepartments.find(d => d.slug === slug.toLowerCase() || d.id === slug || d._id === slug);
   if (fallback) {
     const formatted = formatDepartment(fallback);
     return res.status(200).json({
@@ -415,35 +417,38 @@ export const createDepartment = asyncHandler(async (req, res) => {
   }
 
   const newId = createdDept ? createdDept._id.toString() : `dept-${Date.now()}`;
+  const deptObj = {
+    id: newId,
+    _id: newId,
+    name,
+    code: generatedCode,
+    slug: generatedSlug,
+    shortDescription: shortDescription || description || "",
+    description: description || shortDescription || "",
+    desc: shortDescription || description || "",
+    intake: Number(intake) || 60,
+    duration: duration || "3 Years",
+    establishedYear: Number(establishedYear) || 1960,
+    syllabusUrl: finalSyllabusUrl,
+    hod: finalHod,
+    hodName: finalHod?.name || "",
+    about: about || { heading: "About the Department", summary: description || "" }
+  };
+
+  inMemoryDepartments.push(deptObj);
 
   res.status(201).json({
     success: true,
     message: "Department created successfully.",
-    department: {
-      id: newId,
-      _id: newId,
-      name,
-      code: generatedCode,
-      slug: generatedSlug,
-      shortDescription: shortDescription || description || "",
-      description: description || shortDescription || "",
-      desc: shortDescription || description || "",
-      intake: Number(intake) || 60,
-      duration: duration || "3 Years",
-      establishedYear: Number(establishedYear) || 1960,
-      syllabusUrl: finalSyllabusUrl,
-      hod: finalHod,
-      hodName: finalHod?.name || "",
-      about: about || { heading: "About the Department", summary: description || "" }
-    }
+    department: deptObj
   });
 });
 
 // @desc    Update department details
-// @route   PUT /api/departments/:id
+// @route   PUT /api/departments/:slug
 // @access  Private (Admin)
 export const updateDepartment = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.slug || req.params.id || "";
   const { name, code, slug, shortDescription, description, intake, duration, establishedYear, hod, about, syllabusUrl, recruiters, gallery, curriculum } = req.body;
 
   let finalSyllabusUrl = syllabusUrl;
@@ -458,14 +463,38 @@ export const updateDepartment = asyncHandler(async (req, res) => {
   }
 
   let updatedDept = null;
+  const lowerId = id ? id.toLowerCase() : "";
+
+  inMemoryDepartments = inMemoryDepartments.map(d => {
+    if (d.id === id || d._id === id || (d.slug && d.slug.toLowerCase() === lowerId)) {
+      return {
+        ...d,
+        name: name || d.name,
+        code: code || d.code,
+        slug: slug || d.slug,
+        shortDescription: shortDescription !== undefined ? shortDescription : d.shortDescription,
+        description: description !== undefined ? description : d.description,
+        intake: intake !== undefined ? Number(intake) : d.intake,
+        duration: duration || d.duration,
+        establishedYear: establishedYear !== undefined ? Number(establishedYear) : d.establishedYear,
+        syllabusUrl: finalSyllabusUrl !== undefined ? finalSyllabusUrl : d.syllabusUrl,
+        hod: finalHod ? { ...d.hod, ...finalHod } : d.hod,
+        about: about ? { ...d.about, ...about } : d.about,
+        recruiters: recruiters || d.recruiters,
+        gallery: gallery || d.gallery,
+        curriculum: curriculum || d.curriculum
+      };
+    }
+    return d;
+  });
 
   if (mongoose.connection.readyState === 1) {
     let dept = null;
     if (mongoose.Types.ObjectId.isValid(id)) {
       dept = await Department.findById(id);
     }
-    if (!dept) {
-      dept = await Department.findOne({ slug: id.toLowerCase() });
+    if (!dept && lowerId) {
+      dept = await Department.findOne({ slug: lowerId });
     }
 
     if (dept) {
@@ -496,16 +525,19 @@ export const updateDepartment = asyncHandler(async (req, res) => {
 });
 
 // @desc    Delete department
-// @route   DELETE /api/departments/:id
+// @route   DELETE /api/departments/:slug
 // @access  Private (Admin)
 export const deleteDepartment = asyncHandler(async (req, res) => {
-  const { id } = req.params;
+  const id = req.params.slug || req.params.id || "";
+  const lowerId = id ? id.toLowerCase() : "";
+
+  inMemoryDepartments = inMemoryDepartments.filter(d => d.id !== id && d._id !== id && (d.slug && d.slug.toLowerCase() !== lowerId));
 
   if (mongoose.connection.readyState === 1) {
     if (mongoose.Types.ObjectId.isValid(id)) {
       await Department.findByIdAndDelete(id);
-    } else {
-      await Department.findOneAndDelete({ slug: id.toLowerCase() });
+    } else if (lowerId) {
+      await Department.findOneAndDelete({ slug: lowerId });
     }
   }
 

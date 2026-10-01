@@ -49,6 +49,7 @@ export function AppRouter() {
 
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/homepage" replace />} />
+          <Route path="login" element={<Navigate to="/admin" replace />} />
           <Route path="dashboard" element={<Navigate to="/admin/homepage" replace />} />
           <Route path="homepage" element={<AdminHomepageMgmtPage />} />
           <Route path="footer" element={<AdminFooterMgmtPage />} />
@@ -61,6 +62,7 @@ export function AppRouter() {
           <Route path="contact" element={<AdminContactMessagesPage />} />
           <Route path="profile" element={<AdminProfilePage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

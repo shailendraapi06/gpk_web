@@ -131,6 +131,9 @@ const websiteSettingsSchema = new mongoose.Schema(
       text: { type: String, default: "Admissions open for Academic Session 2026-27. Apply via JEECUP." },
       isVisible: { type: Boolean, default: true },
       link: { type: String, default: "/admissions" }
+    },
+    about: {
+      type: mongoose.Schema.Types.Mixed
     }
   },
   {

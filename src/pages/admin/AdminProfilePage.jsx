@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { apiRequest } from "../../services/api/client";
 
 export function AdminProfilePage() {
   const [profile, setProfile] = useState({
@@ -37,7 +38,7 @@ export function AdminProfilePage() {
     setPasswordError("");
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     const { currentPassword, newPassword, confirmPassword } = passwordData;
     
@@ -56,14 +57,27 @@ export function AdminProfilePage() {
       return;
     }
 
-    // Success simulation
-    setPasswordSavedMsg(true);
-    setPasswordData({
-      currentPassword: "",
-      newPassword: "",
-      confirmPassword: ""
-    });
-    setTimeout(() => setPasswordSavedMsg(false), 3000);
+    try {
+      setPasswordError("");
+      const res = await apiRequest("/auth/update-password", {
+        method: "PUT",
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+
+      if (res && res.success) {
+        setPasswordSavedMsg(true);
+        setPasswordData({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: ""
+        });
+        setTimeout(() => setPasswordSavedMsg(false), 4000);
+      } else {
+        setPasswordError(res.message || "Failed to update password.");
+      }
+    } catch (err) {
+      setPasswordError(err.message || "Current password incorrect or update failed.");
+    }
   };
 
   return (

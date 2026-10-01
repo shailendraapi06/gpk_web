@@ -1,11 +1,25 @@
 import { v2 as cloudinary } from "cloudinary";
 
-// Configure Cloudinary if env vars exist
-if (
-  process.env.CLOUDINARY_CLOUD_NAME &&
-  process.env.CLOUDINARY_API_KEY &&
-  process.env.CLOUDINARY_API_SECRET
-) {
+// Helper to verify if credentials are truly valid and not placeholders
+export const isCloudinaryConfigured = () => {
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const apiKey = process.env.CLOUDINARY_API_KEY;
+  const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+  if (!cloudName || !apiKey || !apiSecret) return false;
+  if (
+    cloudName === "your_cloud_name" ||
+    apiKey === "your_api_key" ||
+    apiSecret === "your_api_secret" ||
+    apiKey.includes("your_")
+  ) {
+    return false;
+  }
+  return true;
+};
+
+// Configure Cloudinary if valid env vars exist
+if (isCloudinaryConfigured()) {
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
@@ -29,13 +43,8 @@ export const uploadFileToCloudinary = async (fileStr, folder = "gpk_uploads") =>
     return { url: fileStr, public_id: "" };
   }
 
-  // If Cloudinary is configured and string is base64 / data URI
-  const isCloudinaryConfigured =
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET;
-
-  if (isCloudinaryConfigured && typeof fileStr === "string" && fileStr.startsWith("data:")) {
+  // If Cloudinary is properly configured and string is base64 / data URI
+  if (isCloudinaryConfigured() && typeof fileStr === "string" && fileStr.startsWith("data:")) {
     try {
       const isPdf = fileStr.startsWith("data:application/pdf");
       const resourceType = isPdf ? "raw" : "auto";
@@ -45,6 +54,8 @@ export const uploadFileToCloudinary = async (fileStr, folder = "gpk_uploads") =>
         resource_type: resourceType
       });
 
+      console.log(`[Cloudinary] Successfully uploaded asset to ${folder}: ${result.secure_url || result.url}`);
+
       return {
         url: result.secure_url || result.url,
         public_id: result.public_id,
@@ -53,9 +64,13 @@ export const uploadFileToCloudinary = async (fileStr, folder = "gpk_uploads") =>
         bytes: result.bytes
       };
     } catch (error) {
-      console.error("Cloudinary upload failed:", error.message);
+      console.error("[Cloudinary] Upload failed:", error.message);
       return { url: fileStr, public_id: "" };
     }
+  }
+
+  if (typeof fileStr === "string" && fileStr.startsWith("data:") && !isCloudinaryConfigured()) {
+    console.warn("[Cloudinary] Media not uploaded to Cloudinary: Valid Cloudinary credentials not detected in .env. Storing data URI as fallback.");
   }
 
   return { url: fileStr, public_id: "" };

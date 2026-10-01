@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PlusIcon, EditIcon, DeleteIcon } from "../../components/admin/Icons";
 import { DeleteConfirmationModal } from "../../components/admin/DeleteConfirmationModal";
+import { apiRequest } from "../../services/api/client";
 
 export function AdminAboutMgmtPage() {
   const [activeTab, setActiveTab] = useState("highlights");
   const [alertInfo, setAlertInfo] = useState({ show: false, text: "", type: "success" });
+  const [loading, setLoading] = useState(false);
 
   const triggerAlert = (text, type = "success") => {
     setAlertInfo({ show: true, text, type });
@@ -61,6 +63,52 @@ export function AdminAboutMgmtPage() {
   const [recogToDelete, setRecogToDelete] = useState(null);
   const [recogFormData, setRecogFormData] = useState({ title: "", description: "", logo: "" });
 
+  // Load from API on mount
+  useEffect(() => {
+    async function loadAboutSettings() {
+      try {
+        setLoading(true);
+        const res = await apiRequest("/settings");
+        if (res && res.settings && res.settings.about) {
+          const ab = res.settings.about;
+          if (ab.highlights && ab.highlights.length > 0) setHighlights(ab.highlights);
+          if (ab.journey && ab.journey.length > 0) setJourney(ab.journey);
+          if (ab.infrastructure && ab.infrastructure.length > 0) setInfrastructure(ab.infrastructure);
+          if (ab.aboutPageImage) setAboutPageImage(ab.aboutPageImage);
+          if (ab.recognitions && ab.recognitions.length > 0) setRecognitions(ab.recognitions);
+        }
+      } catch (err) {
+        console.warn("Could not load about settings from API:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAboutSettings();
+  }, []);
+
+  // Helper to persist updated About section to backend
+  const persistAbout = async (overrides) => {
+    const payload = {
+      about: {
+        highlights,
+        journey,
+        infrastructure,
+        aboutPageImage,
+        recognitions,
+        ...overrides
+      }
+    };
+    try {
+      await apiRequest("/settings", {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      });
+      return true;
+    } catch (err) {
+      console.warn("Failed to persist about data to API:", err);
+      return false;
+    }
+  };
 
   // ==========================================
   // --- HANDLERS 1: Highlights ---
@@ -70,11 +118,13 @@ export function AdminAboutMgmtPage() {
     setHlFormData({ label: hl.label, value: hl.value });
     setIsHlFormOpen(true);
   };
-  const handleHlSubmit = (e) => {
+  const handleHlSubmit = async (e) => {
     e.preventDefault();
-    setHighlights(prev => prev.map(h => h.id === currentHl.id ? { ...h, ...hlFormData } : h));
+    const updatedHls = highlights.map(h => h.id === currentHl.id ? { ...h, ...hlFormData } : h);
+    setHighlights(updatedHls);
     setIsHlFormOpen(false);
-    triggerAlert("Metric highlight updated successfully!");
+    await persistAbout({ highlights: updatedHls });
+    triggerAlert("Metric highlight updated and saved successfully!");
   };
 
   // ==========================================
@@ -90,25 +140,30 @@ export function AdminAboutMgmtPage() {
     setJourneyFormData({ year: j.year, title: j.title, description: j.description });
     setIsJourneyFormOpen(true);
   };
-  const handleJourneySubmit = (e) => {
+  const handleJourneySubmit = async (e) => {
     e.preventDefault();
+    let updatedJourney;
     if (currentJourney) {
-      setJourney(prev => prev.map(j => j.id === currentJourney.id ? { ...j, ...journeyFormData } : j));
+      updatedJourney = journey.map(j => j.id === currentJourney.id ? { ...j, ...journeyFormData } : j);
       triggerAlert("Timeline step updated successfully!");
     } else {
-      setJourney(prev => [...prev, { id: `j-${Date.now()}`, ...journeyFormData }]);
+      updatedJourney = [...journey, { id: `j-${Date.now()}`, ...journeyFormData }];
       triggerAlert("Timeline milestone added successfully!");
     }
+    setJourney(updatedJourney);
     setIsJourneyFormOpen(false);
+    await persistAbout({ journey: updatedJourney });
   };
   const handleJourneyDelete = (j) => {
     setJourneyToDelete(j);
     setIsJourneyDeleteOpen(true);
   };
-  const handleJourneyConfirmDelete = () => {
-    setJourney(prev => prev.filter(j => j.id !== journeyToDelete.id));
+  const handleJourneyConfirmDelete = async () => {
+    const updatedJourney = journey.filter(j => j.id !== journeyToDelete.id);
+    setJourney(updatedJourney);
     setIsJourneyDeleteOpen(false);
-    triggerAlert("Timeline step deleted successfully!", "error");
+    await persistAbout({ journey: updatedJourney });
+    triggerAlert("Timeline milestone deleted successfully!", "error");
   };
 
   // ==========================================
@@ -124,33 +179,39 @@ export function AdminAboutMgmtPage() {
     setInfraFormData({ title: i.title, description: i.description, image: i.image });
     setIsInfraFormOpen(true);
   };
-  const handleInfraSubmit = (e) => {
+  const handleInfraSubmit = async (e) => {
     e.preventDefault();
+    let updatedInfra;
     if (currentInfra) {
-      setInfrastructure(prev => prev.map(i => i.id === currentInfra.id ? { ...i, ...infraFormData } : i));
-      triggerAlert("Infrastructure item updated!");
+      updatedInfra = infrastructure.map(i => i.id === currentInfra.id ? { ...i, ...infraFormData } : i);
+      triggerAlert("Infrastructure item updated successfully!");
     } else {
-      setInfrastructure(prev => [...prev, { id: `infra-${Date.now()}`, ...infraFormData }]);
-      triggerAlert("New infrastructure item added!");
+      updatedInfra = [...infrastructure, { id: `infra-${Date.now()}`, ...infraFormData }];
+      triggerAlert("New infrastructure item added successfully!");
     }
+    setInfrastructure(updatedInfra);
     setIsInfraFormOpen(false);
+    await persistAbout({ infrastructure: updatedInfra });
   };
   const handleInfraDelete = (i) => {
     setInfraToDelete(i);
     setIsInfraDeleteOpen(true);
   };
-  const handleInfraConfirmDelete = () => {
-    setInfrastructure(prev => prev.filter(i => i.id !== infraToDelete.id));
+  const handleInfraConfirmDelete = async () => {
+    const updatedInfra = infrastructure.filter(i => i.id !== infraToDelete.id);
+    setInfrastructure(updatedInfra);
     setIsInfraDeleteOpen(false);
+    await persistAbout({ infrastructure: updatedInfra });
     triggerAlert("Infrastructure item deleted!", "error");
   };
 
   // ==========================================
   // --- HANDLERS 4: Main About Image ---
   // ==========================================
-  const handleAboutImageSubmit = (e) => {
+  const handleAboutImageSubmit = async (e) => {
     e.preventDefault();
-    triggerAlert("Main About page image URL saved!");
+    await persistAbout({ aboutPageImage });
+    triggerAlert("Main About page image saved successfully!");
   };
 
   // ==========================================
@@ -166,25 +227,30 @@ export function AdminAboutMgmtPage() {
     setRecogFormData({ title: r.title, description: r.description, logo: r.logo });
     setIsRecogFormOpen(true);
   };
-  const handleRecogSubmit = (e) => {
+  const handleRecogSubmit = async (e) => {
     e.preventDefault();
+    let updatedRecog;
     if (currentRecog) {
-      setRecognitions(prev => prev.map(r => r.id === currentRecog.id ? { ...r, ...recogFormData } : r));
+      updatedRecog = recognitions.map(r => r.id === currentRecog.id ? { ...r, ...recogFormData } : r);
       triggerAlert("Institutional recognition updated successfully!");
     } else {
-      setRecognitions(prev => [...prev, { id: `recog-${Date.now()}`, ...recogFormData }]);
+      updatedRecog = [...recognitions, { id: `recog-${Date.now()}`, ...recogFormData }];
       triggerAlert("New institutional recognition added successfully!");
     }
+    setRecognitions(updatedRecog);
     setIsRecogFormOpen(false);
+    await persistAbout({ recognitions: updatedRecog });
   };
   const handleRecogDelete = (r) => {
     setRecogToDelete(r);
     setIsRecogDeleteOpen(true);
   };
-  const handleRecogConfirmDelete = () => {
-    setRecognitions(prev => prev.filter(r => r.id !== recogToDelete.id));
+  const handleRecogConfirmDelete = async () => {
+    const updatedRecog = recognitions.filter(r => r.id !== recogToDelete.id);
+    setRecognitions(updatedRecog);
     setIsRecogDeleteOpen(false);
-    triggerAlert("Recognition step deleted successfully!", "error");
+    await persistAbout({ recognitions: updatedRecog });
+    triggerAlert("Recognition deleted successfully!", "error");
   };
 
   return (

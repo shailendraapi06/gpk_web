@@ -109,12 +109,19 @@ const FALLBACK_CONTACT = [
   { id: "hours", label: "Office Hours", value: "Monday to Saturday, 10:00 AM to 5:00 PM", icon: "hours" }
 ];
 
+let inMemoryHeroSlides = [...FALLBACK_HERO_SLIDES];
+let inMemoryLeadership = [...FALLBACK_LEADERSHIP];
+let inMemoryPrincipal = { ...FALLBACK_PRINCIPAL };
+let inMemoryRecruiters = [...FALLBACK_RECRUITERS];
+let inMemoryGallery = [...FALLBACK_GALLERY];
+let inMemoryContact = [...FALLBACK_CONTACT];
+
 // Helper to ensure single Homepage document exists
 const getOrCreateHomepageDoc = async () => {
   let doc = await Homepage.findOne();
   if (!doc) {
     doc = await Homepage.create({
-      heroSlides: FALLBACK_HERO_SLIDES.map((s) => ({
+      heroSlides: inMemoryHeroSlides.map((s) => ({
         title: s.title,
         subtitle: s.subtitle,
         imageUrl: s.src || s.image,
@@ -122,10 +129,10 @@ const getOrCreateHomepageDoc = async () => {
         ctaLink: s.ctaLink
       })),
       principalMessage: {
-        name: FALLBACK_PRINCIPAL.name,
-        designation: FALLBACK_PRINCIPAL.designation,
-        message: FALLBACK_PRINCIPAL.message,
-        photoUrl: FALLBACK_PRINCIPAL.photo.src
+        name: inMemoryPrincipal.name,
+        designation: inMemoryPrincipal.designation,
+        message: inMemoryPrincipal.message,
+        photoUrl: inMemoryPrincipal.photo.src
       }
     });
   }
@@ -138,12 +145,12 @@ const getOrCreateHomepageDoc = async () => {
 // @access  Public
 // ==========================================
 export const getPublicHomepageData = asyncHandler(async (req, res) => {
-  let heroSlides = FALLBACK_HERO_SLIDES;
-  let leadership = FALLBACK_LEADERSHIP;
-  let principal = FALLBACK_PRINCIPAL;
-  let recruiters = FALLBACK_RECRUITERS;
-  let gallery = FALLBACK_GALLERY;
-  let contact = FALLBACK_CONTACT;
+  let heroSlides = inMemoryHeroSlides;
+  let leadership = inMemoryLeadership;
+  let principal = inMemoryPrincipal;
+  let recruiters = inMemoryRecruiters;
+  let gallery = inMemoryGallery;
+  let contact = inMemoryContact;
 
   if (mongoose.connection.readyState === 1) {
     try {
@@ -216,16 +223,19 @@ export const getPublicHomepageData = asyncHandler(async (req, res) => {
     }
   }
 
+  const hpPayload = {
+    heroSlides,
+    leadership,
+    principal,
+    recruiters,
+    gallery,
+    contact
+  };
+
   res.status(200).json({
     success: true,
-    data: {
-      heroSlides,
-      leadership,
-      principal,
-      recruiters,
-      gallery,
-      contact
-    }
+    data: hpPayload,
+    homepage: hpPayload
   });
 });
 
@@ -251,7 +261,7 @@ export const getHeroSlides = asyncHandler(async (req, res) => {
       return res.status(200).json({ success: true, slides });
     }
   }
-  res.status(200).json({ success: true, slides: FALLBACK_HERO_SLIDES });
+  res.status(200).json({ success: true, slides: inMemoryHeroSlides });
 });
 
 export const addHeroSlide = asyncHandler(async (req, res) => {
@@ -267,6 +277,18 @@ export const addHeroSlide = asyncHandler(async (req, res) => {
   }
 
   let createdId = `hero-${Date.now()}`;
+  const slideObj = {
+    id: createdId,
+    _id: createdId,
+    title: title || "Government Polytechnic Kanpur",
+    subtitle: subtitle || "",
+    src: url,
+    image: url,
+    imageUrl: url,
+    ctaText: ctaText || "Learn More",
+    ctaLink: ctaLink || "/about"
+  };
+  inMemoryHeroSlides.push(slideObj);
 
   if (mongoose.connection.readyState === 1) {
     const hp = await getOrCreateHomepageDoc();
@@ -280,22 +302,14 @@ export const addHeroSlide = asyncHandler(async (req, res) => {
     await hp.save();
     const newSlide = hp.heroSlides[hp.heroSlides.length - 1];
     createdId = newSlide._id.toString();
+    slideObj.id = createdId;
+    slideObj._id = createdId;
   }
 
   res.status(201).json({
     success: true,
     message: "Hero slide added successfully.",
-    slide: {
-      id: createdId,
-      _id: createdId,
-      title: title || "Government Polytechnic Kanpur",
-      subtitle: subtitle || "",
-      src: url,
-      image: url,
-      imageUrl: url,
-      ctaText: ctaText || "Learn More",
-      ctaLink: ctaLink || "/about"
-    }
+    slide: slideObj
   });
 });
 
@@ -307,6 +321,22 @@ export const updateHeroSlide = asyncHandler(async (req, res) => {
   if (url && url.startsWith("data:")) {
     url = await uploadToCloudinary(url, "gpk_hero");
   }
+
+  inMemoryHeroSlides = inMemoryHeroSlides.map(s => {
+    if (s.id === id || s._id === id) {
+      return {
+        ...s,
+        title: title || s.title,
+        subtitle: subtitle !== undefined ? subtitle : s.subtitle,
+        src: url || s.src,
+        image: url || s.image,
+        imageUrl: url || s.imageUrl,
+        ctaText: ctaText || s.ctaText,
+        ctaLink: ctaLink || s.ctaLink
+      };
+    }
+    return s;
+  });
 
   if (mongoose.connection.readyState === 1) {
     const hp = await Homepage.findOne();
@@ -332,6 +362,8 @@ export const updateHeroSlide = asyncHandler(async (req, res) => {
 
 export const deleteHeroSlide = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  inMemoryHeroSlides = inMemoryHeroSlides.filter(s => s.id !== id && s._id !== id);
 
   if (mongoose.connection.readyState === 1) {
     const hp = await Homepage.findOne();
@@ -366,7 +398,7 @@ export const getLeadership = asyncHandler(async (req, res) => {
       return res.status(200).json({ success: true, leaders });
     }
   }
-  res.status(200).json({ success: true, leaders: FALLBACK_LEADERSHIP });
+  res.status(200).json({ success: true, leaders: inMemoryLeadership });
 });
 
 export const addLeader = asyncHandler(async (req, res) => {
@@ -382,6 +414,15 @@ export const addLeader = asyncHandler(async (req, res) => {
   }
 
   let createdId = `ldr-${Date.now()}`;
+  const leaderObj = {
+    id: createdId,
+    _id: createdId,
+    name,
+    designation,
+    photo: { src: url },
+    photoUrl: url
+  };
+  inMemoryLeadership.push(leaderObj);
 
   if (mongoose.connection.readyState === 1) {
     const newLdr = await Leadership.create({
@@ -390,19 +431,14 @@ export const addLeader = asyncHandler(async (req, res) => {
       photoUrl: url
     });
     createdId = newLdr._id.toString();
+    leaderObj.id = createdId;
+    leaderObj._id = createdId;
   }
 
   res.status(201).json({
     success: true,
     message: "Leader profile added successfully.",
-    leader: {
-      id: createdId,
-      _id: createdId,
-      name,
-      designation,
-      photo: { src: url },
-      photoUrl: url
-    }
+    leader: leaderObj
   });
 });
 
@@ -414,6 +450,19 @@ export const updateLeader = asyncHandler(async (req, res) => {
   if (url && url.startsWith("data:")) {
     url = await uploadToCloudinary(url, "gpk_leadership");
   }
+
+  inMemoryLeadership = inMemoryLeadership.map(l => {
+    if (l.id === id || l._id === id) {
+      return {
+        ...l,
+        name: name || l.name,
+        designation: designation || l.designation,
+        photo: { src: url || l.photoUrl || (l.photo && l.photo.src) || "" },
+        photoUrl: url || l.photoUrl || (l.photo && l.photo.src) || ""
+      };
+    }
+    return l;
+  });
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     const ldr = await Leadership.findById(id);
@@ -440,6 +489,8 @@ export const updateLeader = asyncHandler(async (req, res) => {
 
 export const deleteLeader = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  inMemoryLeadership = inMemoryLeadership.filter(l => l.id !== id && l._id !== id);
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     await Leadership.findByIdAndDelete(id);
@@ -475,7 +526,7 @@ export const getPrincipalMessage = asyncHandler(async (req, res) => {
     }
   }
 
-  res.status(200).json({ success: true, principal: FALLBACK_PRINCIPAL });
+  res.status(200).json({ success: true, principal: inMemoryPrincipal });
 });
 
 export const updatePrincipalMessage = asyncHandler(async (req, res) => {
@@ -485,6 +536,17 @@ export const updatePrincipalMessage = asyncHandler(async (req, res) => {
   if (url && url.startsWith("data:")) {
     url = await uploadToCloudinary(url, "gpk_leadership");
   }
+
+  inMemoryPrincipal = {
+    sectionTitle: sectionTitle || inMemoryPrincipal.sectionTitle,
+    name: name || inMemoryPrincipal.name,
+    designation: designation || inMemoryPrincipal.designation,
+    message: message || inMemoryPrincipal.message,
+    actionLabel: actionLabel || inMemoryPrincipal.actionLabel,
+    actionTo: actionTo || inMemoryPrincipal.actionTo,
+    photo: { src: url || (inMemoryPrincipal.photo && inMemoryPrincipal.photo.src) || "" },
+    photoUrl: url || inMemoryPrincipal.photoUrl || (inMemoryPrincipal.photo && inMemoryPrincipal.photo.src) || ""
+  };
 
   if (mongoose.connection.readyState === 1) {
     const hp = await getOrCreateHomepageDoc();
@@ -500,16 +562,7 @@ export const updatePrincipalMessage = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: "Principal message updated successfully.",
-    principal: {
-      sectionTitle: sectionTitle || "Principal's Message",
-      name,
-      designation,
-      message,
-      actionLabel,
-      actionTo,
-      photo: { src: url },
-      photoUrl: url
-    }
+    principal: inMemoryPrincipal
   });
 });
 
@@ -531,7 +584,7 @@ export const getRecruiters = asyncHandler(async (req, res) => {
     }
   }
 
-  res.status(200).json({ success: true, recruiters: FALLBACK_RECRUITERS });
+  res.status(200).json({ success: true, recruiters: inMemoryRecruiters });
 });
 
 export const addRecruiter = asyncHandler(async (req, res) => {
@@ -541,8 +594,19 @@ export const addRecruiter = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Recruiter company name is required.");
   }
 
-  const url = logo || logoUrl || "";
+  let url = logo || logoUrl || "";
+  if (url && url.startsWith("data:")) {
+    url = await uploadToCloudinary(url, "gpk_recruiters");
+  }
   let createdId = `rec-${Date.now()}`;
+  const recruiterObj = {
+    id: createdId,
+    _id: createdId,
+    name,
+    logo: url,
+    logoUrl: url
+  };
+  inMemoryRecruiters.push(recruiterObj);
 
   if (mongoose.connection.readyState === 1) {
     let placementDoc = await Placement.findOne();
@@ -554,18 +618,14 @@ export const addRecruiter = asyncHandler(async (req, res) => {
     await placementDoc.save();
     const last = placementDoc.topRecruiters[placementDoc.topRecruiters.length - 1];
     createdId = last._id.toString();
+    recruiterObj.id = createdId;
+    recruiterObj._id = createdId;
   }
 
   res.status(201).json({
     success: true,
     message: "Recruiter added successfully.",
-    recruiter: {
-      id: createdId,
-      _id: createdId,
-      name,
-      logo: url,
-      logoUrl: url
-    }
+    recruiter: recruiterObj
   });
 });
 
@@ -573,7 +633,22 @@ export const updateRecruiter = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { name, logo, logoUrl } = req.body;
 
-  const url = logo || logoUrl || "";
+  let url = logo || logoUrl || "";
+  if (url && url.startsWith("data:")) {
+    url = await uploadToCloudinary(url, "gpk_recruiters");
+  }
+
+  inMemoryRecruiters = inMemoryRecruiters.map(r => {
+    if (r.id === id || r._id === id) {
+      return {
+        ...r,
+        name: name || r.name,
+        logo: url || r.logo,
+        logoUrl: url || r.logoUrl
+      };
+    }
+    return r;
+  });
 
   if (mongoose.connection.readyState === 1) {
     const placementDoc = await Placement.findOne();
@@ -596,6 +671,8 @@ export const updateRecruiter = asyncHandler(async (req, res) => {
 
 export const deleteRecruiter = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  inMemoryRecruiters = inMemoryRecruiters.filter(r => r.id !== id && r._id !== id);
 
   if (mongoose.connection.readyState === 1) {
     const placementDoc = await Placement.findOne();
@@ -630,7 +707,7 @@ export const getGalleryPreview = asyncHandler(async (req, res) => {
     }
   }
 
-  res.status(200).json({ success: true, gallery: FALLBACK_GALLERY });
+  res.status(200).json({ success: true, gallery: inMemoryGallery });
 });
 
 export const addGalleryPreview = asyncHandler(async (req, res) => {
@@ -641,6 +718,14 @@ export const addGalleryPreview = asyncHandler(async (req, res) => {
   }
 
   let createdId = `gal-${Date.now()}`;
+  const galItem = {
+    id: createdId,
+    _id: createdId,
+    title,
+    category: category || "Campus",
+    src
+  };
+  inMemoryGallery.push(galItem);
 
   if (mongoose.connection.readyState === 1) {
     const newGal = await Gallery.create({
@@ -650,24 +735,32 @@ export const addGalleryPreview = asyncHandler(async (req, res) => {
       thumbnail: src
     });
     createdId = newGal._id.toString();
+    galItem.id = createdId;
+    galItem._id = createdId;
   }
 
   res.status(201).json({
     success: true,
     message: "Gallery image added successfully.",
-    galleryItem: {
-      id: createdId,
-      _id: createdId,
-      title,
-      category: category || "Campus",
-      src
-    }
+    galleryItem: galItem
   });
 });
 
 export const updateGalleryPreview = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { title, category, src } = req.body;
+
+  inMemoryGallery = inMemoryGallery.map(g => {
+    if (g.id === id || g._id === id) {
+      return {
+        ...g,
+        title: title || g.title,
+        category: category || g.category,
+        src: src || g.src
+      };
+    }
+    return g;
+  });
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     const gal = await Gallery.findById(id);
@@ -691,6 +784,8 @@ export const updateGalleryPreview = asyncHandler(async (req, res) => {
 
 export const deleteGalleryPreview = asyncHandler(async (req, res) => {
   const { id } = req.params;
+
+  inMemoryGallery = inMemoryGallery.filter(g => g.id !== id && g._id !== id);
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     await Gallery.findByIdAndDelete(id);
@@ -720,11 +815,18 @@ export const getContactInfo = asyncHandler(async (req, res) => {
     }
   }
 
-  res.status(200).json({ success: true, contact: FALLBACK_CONTACT });
+  res.status(200).json({ success: true, contact: inMemoryContact });
 });
 
 export const updateContactInfo = asyncHandler(async (req, res) => {
   const { items } = req.body;
+
+  if (Array.isArray(items)) {
+    inMemoryContact = inMemoryContact.map(c => {
+      const match = items.find(it => it.id === c.id);
+      return match ? { ...c, value: match.value } : c;
+    });
+  }
 
   if (mongoose.connection.readyState === 1) {
     let settings = await WebsiteSettings.findOne();
