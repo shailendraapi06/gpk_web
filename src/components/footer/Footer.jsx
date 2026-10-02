@@ -139,13 +139,14 @@ export function Footer() {
         </div>
 
         <div className="footer__bottom">
-          <p className="footer__copyright">
-            © {currentYear} {collegeInfo.title}. All rights reserved.
-            {" | "}
-            <NavLink to="/admin" style={{ textDecoration: "underline", color: "var(--color-accent-300)", marginLeft: "0.5rem" }}>
+          <div className="footer__bottom-inner">
+            <p className="footer__copyright">
+              © {currentYear} {collegeInfo.title}. All rights reserved.
+            </p>
+            <NavLink to="/admin" className="footer__admin-link">
               Admin Portal Login
             </NavLink>
-          </p>
+          </div>
         </div>
       </PageContainer>
     </footer>

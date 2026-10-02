@@ -2,7 +2,13 @@ import mongoose from "mongoose";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { ApiError } from "../middleware/errorHandler.js";
 import WebsiteSettings from "../models/WebsiteSettings.js";
-import { uploadToCloudinary } from "../utils/cloudinary.js";
+import {
+  uploadToCloudinary,
+  uploadBufferToCloudinary,
+  deleteFromCloudinary,
+  extractPublicId,
+  CLOUDINARY_FOLDERS
+} from "../utils/cloudinary.js";
 
 const DEFAULT_SETTINGS = {
   collegeName: "Government Polytechnic Kanpur",
@@ -107,15 +113,22 @@ export const getSettings = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const updateSettings = asyncHandler(async (req, res) => {
   const updateFields = { ...req.body };
+  let oldLogoToClean = "";
 
   // Handle logo upload if base64 or custom string is provided
   if (updateFields.logoUrl) {
-    updateFields.logoUrl = await uploadToCloudinary(updateFields.logoUrl, "gpk_branding");
+    if (inMemorySettings.logoUrl && inMemorySettings.logoUrl !== updateFields.logoUrl) {
+      oldLogoToClean = inMemorySettings.logoPublicId || inMemorySettings.logoUrl;
+    }
+    if (updateFields.logoUrl.startsWith("data:")) {
+      updateFields.logoUrl = await uploadToCloudinary(updateFields.logoUrl, CLOUDINARY_FOLDERS.BRANDING);
+    }
+    updateFields.logoPublicId = updateFields.logoPublicId || extractPublicId(updateFields.logoUrl);
   }
 
   // Handle about image upload if base64
   if (updateFields.about?.aboutPageImage && updateFields.about.aboutPageImage.startsWith("data:")) {
-    updateFields.about.aboutPageImage = await uploadToCloudinary(updateFields.about.aboutPageImage, "gpk_about");
+    updateFields.about.aboutPageImage = await uploadToCloudinary(updateFields.about.aboutPageImage, CLOUDINARY_FOLDERS.SETTINGS);
   }
 
   if (updateFields.primaryEmail && !updateFields.email) {
@@ -134,9 +147,16 @@ export const updateSettings = asyncHandler(async (req, res) => {
     if (!settings) {
       settings = new WebsiteSettings({ ...inMemorySettings, ...updateFields });
     } else {
+      if (updateFields.logoUrl && settings.logoUrl && settings.logoUrl !== updateFields.logoUrl) {
+        oldLogoToClean = settings.logoPublicId || settings.logoUrl;
+      }
       Object.assign(settings, updateFields);
     }
     updatedSettings = await settings.save();
+  }
+
+  if (oldLogoToClean && oldLogoToClean !== updateFields.logoUrl) {
+    await deleteFromCloudinary(oldLogoToClean);
   }
 
   res.status(200).json({
@@ -150,17 +170,32 @@ export const updateSettings = asyncHandler(async (req, res) => {
 // @route   POST /api/settings/logo
 // @access  Private (Admin)
 export const uploadLogo = asyncHandler(async (req, res) => {
-  const { logoStr } = req.body;
-
-  if (!logoStr) {
-    throw new ApiError(400, "Logo image string or base64 is required.");
+  if (req.file) {
+    const result = await uploadBufferToCloudinary(req.file.buffer, CLOUDINARY_FOLDERS.BRANDING, {
+      mimetype: req.file.mimetype,
+      originalname: req.file.originalname
+    });
+    return res.status(200).json({
+      success: true,
+      message: "Logo uploaded successfully to Cloudinary.",
+      logoUrl: result.url,
+      public_id: result.public_id
+    });
   }
 
-  const uploadedUrl = await uploadToCloudinary(logoStr, "gpk_branding");
+  const { logoStr, file } = req.body;
+  const target = logoStr || file;
+
+  if (!target) {
+    throw new ApiError(400, "Logo image file or string is required.");
+  }
+
+  const uploadedUrl = await uploadToCloudinary(target, CLOUDINARY_FOLDERS.BRANDING);
 
   res.status(200).json({
     success: true,
     message: "Logo uploaded successfully.",
-    logoUrl: uploadedUrl
+    logoUrl: uploadedUrl,
+    public_id: extractPublicId(uploadedUrl)
   });
 });

@@ -126,16 +126,9 @@ export function AdminLayout() {
       {/* Mobile Sidebar Overlay */}
       {isSidebarOpen && (
         <div 
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.4)",
-            zIndex: 99
-          }}
+          className="admin-sidebar-overlay"
           onClick={() => setIsSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
@@ -148,9 +141,10 @@ export function AdminLayout() {
             <span className="admin-sidebar__subtitle">Management Console</span>
           </div>
           <button 
-            className="admin-navbar__toggle" 
-            style={{ display: isSidebarOpen ? "block" : "none", marginLeft: "auto", color: "#fff" }}
+            type="button"
+            className="admin-sidebar__close-btn" 
             onClick={() => setIsSidebarOpen(false)}
+            aria-label="Close navigation sidebar"
           >
             <CloseIcon style={{ width: "24px", height: "24px" }} />
           </button>
@@ -188,9 +182,10 @@ export function AdminLayout() {
         <header className="admin-navbar">
           <div className="admin-navbar__left">
             <button 
-              className="admin-navbar__toggle" 
-              style={{ display: "block" }} 
+              type="button"
+              className="admin-navbar__toggle admin-navbar__toggle--mobile-only" 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              aria-label="Toggle navigation sidebar"
             >
               <MenuIcon style={{ width: "24px", height: "24px" }} />
             </button>

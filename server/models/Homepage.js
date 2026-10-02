@@ -15,6 +15,10 @@ const heroSlideSchema = new mongoose.Schema({
     type: String,
     required: [true, "Hero slide image URL is required"]
   },
+  imagePublicId: {
+    type: String,
+    default: ""
+  },
   ctaLabel: {
     type: String,
     default: "Learn More"
@@ -79,7 +83,8 @@ const homepageSchema = new mongoose.Schema(
       name: { type: String, default: "Principal" },
       designation: { type: String, default: "Principal, GP Kanpur" },
       message: { type: String, default: "Empowering students through technical innovation and moral values." },
-      photoUrl: { type: String, default: "" }
+      photoUrl: { type: String, default: "" },
+      photoPublicId: { type: String, default: "" }
     }
   },
   {

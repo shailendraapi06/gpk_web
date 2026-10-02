@@ -31,7 +31,15 @@ const gallerySchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+    thumbnailPublicId: {
+      type: String,
+      default: ""
+    },
     src: {
+      type: String,
+      default: ""
+    },
+    public_id: {
       type: String,
       default: ""
     },

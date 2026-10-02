@@ -64,6 +64,10 @@ const websiteSettingsSchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+    logoPublicId: {
+      type: String,
+      default: ""
+    },
     address: {
       type: String,
       default: "Government Polytechnic Kanpur, GT Road, Rawatpur, Kanpur, Uttar Pradesh - 208002"

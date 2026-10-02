@@ -4,6 +4,7 @@ const recruiterSchema = new mongoose.Schema({
   id: { type: String },
   name: { type: String, required: true, trim: true },
   logo: { type: String, default: "" },
+  logoPublicId: { type: String, default: "" },
   sector: { type: String, default: "Core Engineering / IT" }
 });
 

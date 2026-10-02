@@ -7,14 +7,25 @@ import {
   deleteGalleryItem,
   uploadGalleryImage
 } from "../controllers/galleryController.js";
+import { uploadImage } from "../middleware/uploadMiddleware.js";
 
 const router = express.Router();
+
+const uploadGalleryHandler = (req, res, next) => {
+  uploadImage.any()(req, res, (err) => {
+    if (err) return next(err);
+    if (req.files && req.files.length > 0) {
+      req.file = req.files[0];
+    }
+    next();
+  });
+};
 
 // GET /api/gallery - Get gallery list
 router.get("/", getGalleryItems);
 
 // POST /api/gallery/upload - Direct Cloudinary image upload endpoint
-router.post("/upload", uploadGalleryImage);
+router.post("/upload", uploadGalleryHandler, uploadGalleryImage);
 
 // GET /api/gallery/:id - Get single item
 router.get("/:id", getGalleryItemById);

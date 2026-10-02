@@ -2,7 +2,12 @@ import mongoose from "mongoose";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { ApiError } from "../middleware/errorHandler.js";
 import { Homepage, Leadership, Gallery, Placement, Notice, WebsiteSettings } from "../models/index.js";
-import { uploadToCloudinary } from "../utils/cloudinary.js";
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+  extractPublicId,
+  CLOUDINARY_FOLDERS
+} from "../utils/cloudinary.js";
 
 // Initial Fallback Data
 const FALLBACK_HERO_SLIDES = [
@@ -265,15 +270,17 @@ export const getHeroSlides = asyncHandler(async (req, res) => {
 });
 
 export const addHeroSlide = asyncHandler(async (req, res) => {
-  const { title, subtitle, src, image, imageUrl, ctaText, ctaLink } = req.body;
+  const { title, subtitle, src, image, imageUrl, imagePublicId, ctaText, ctaLink } = req.body;
 
   let url = src || image || imageUrl;
   if (!url) {
     throw new ApiError(400, "Image URL is required for hero slide.");
   }
 
+  let finalPublicId = imagePublicId || extractPublicId(url);
   if (url.startsWith("data:")) {
-    url = await uploadToCloudinary(url, "gpk_hero");
+    url = await uploadToCloudinary(url, CLOUDINARY_FOLDERS.HEROES);
+    finalPublicId = extractPublicId(url);
   }
 
   let createdId = `hero-${Date.now()}`;
@@ -285,6 +292,7 @@ export const addHeroSlide = asyncHandler(async (req, res) => {
     src: url,
     image: url,
     imageUrl: url,
+    imagePublicId: finalPublicId,
     ctaText: ctaText || "Learn More",
     ctaLink: ctaLink || "/about"
   };
@@ -296,6 +304,7 @@ export const addHeroSlide = asyncHandler(async (req, res) => {
       title: title || "Government Polytechnic Kanpur",
       subtitle: subtitle || "",
       imageUrl: url,
+      imagePublicId: finalPublicId,
       ctaLabel: ctaText || "Learn More",
       ctaLink: ctaLink || "/about"
     });
@@ -315,15 +324,21 @@ export const addHeroSlide = asyncHandler(async (req, res) => {
 
 export const updateHeroSlide = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, subtitle, src, image, imageUrl, ctaText, ctaLink } = req.body;
+  const { title, subtitle, src, image, imageUrl, imagePublicId, ctaText, ctaLink } = req.body;
 
   let url = src || image || imageUrl;
+  let finalPublicId = imagePublicId;
   if (url && url.startsWith("data:")) {
-    url = await uploadToCloudinary(url, "gpk_hero");
+    url = await uploadToCloudinary(url, CLOUDINARY_FOLDERS.HEROES);
+    finalPublicId = extractPublicId(url);
   }
 
+  let oldImageToClean = "";
   inMemoryHeroSlides = inMemoryHeroSlides.map(s => {
     if (s.id === id || s._id === id) {
+      if (url && s.imageUrl && s.imageUrl !== url) {
+        oldImageToClean = s.imagePublicId || s.imageUrl;
+      }
       return {
         ...s,
         title: title || s.title,
@@ -331,6 +346,7 @@ export const updateHeroSlide = asyncHandler(async (req, res) => {
         src: url || s.src,
         image: url || s.image,
         imageUrl: url || s.imageUrl,
+        imagePublicId: finalPublicId || s.imagePublicId,
         ctaText: ctaText || s.ctaText,
         ctaLink: ctaLink || s.ctaLink
       };
@@ -345,12 +361,23 @@ export const updateHeroSlide = asyncHandler(async (req, res) => {
       if (slide) {
         if (title) slide.title = title;
         if (subtitle !== undefined) slide.subtitle = subtitle;
-        if (url) slide.imageUrl = url;
+        if (url) {
+          if (slide.imageUrl && slide.imageUrl !== url) {
+            oldImageToClean = slide.imagePublicId || slide.imageUrl;
+          }
+          slide.imageUrl = url;
+          slide.imagePublicId = finalPublicId || extractPublicId(url);
+        }
         if (ctaText) slide.ctaLabel = ctaText;
         if (ctaLink) slide.ctaLink = ctaLink;
         await hp.save();
       }
     }
+  }
+
+  // Safely delete old Cloudinary asset after MongoDB update completes
+  if (oldImageToClean && oldImageToClean !== url) {
+    await deleteFromCloudinary(oldImageToClean);
   }
 
   res.status(200).json({
@@ -363,14 +390,29 @@ export const updateHeroSlide = asyncHandler(async (req, res) => {
 export const deleteHeroSlide = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  let oldImageToClean = "";
+  const existing = inMemoryHeroSlides.find(s => s.id === id || s._id === id);
+  if (existing) {
+    oldImageToClean = existing.imagePublicId || existing.imageUrl || existing.src;
+  }
+
   inMemoryHeroSlides = inMemoryHeroSlides.filter(s => s.id !== id && s._id !== id);
 
   if (mongoose.connection.readyState === 1) {
     const hp = await Homepage.findOne();
     if (hp) {
-      hp.heroSlides.pull({ _id: id });
-      await hp.save();
+      const slide = hp.heroSlides.id(id);
+      if (slide) {
+        if (!oldImageToClean) oldImageToClean = slide.imagePublicId || slide.imageUrl;
+        hp.heroSlides.pull({ _id: id });
+        await hp.save();
+      }
     }
+  }
+
+  // Delete asset from Cloudinary
+  if (oldImageToClean) {
+    await deleteFromCloudinary(oldImageToClean);
   }
 
   res.status(200).json({
@@ -402,15 +444,17 @@ export const getLeadership = asyncHandler(async (req, res) => {
 });
 
 export const addLeader = asyncHandler(async (req, res) => {
-  const { name, designation, src, photoUrl, photo } = req.body;
+  const { name, designation, src, photoUrl, photo, photoPublicId } = req.body;
 
   if (!name || !designation) {
     throw new ApiError(400, "Leader name and designation are required.");
   }
 
   let url = photoUrl || src || (photo && photo.src) || "";
+  let finalPublicId = photoPublicId || extractPublicId(url);
   if (url && url.startsWith("data:")) {
-    url = await uploadToCloudinary(url, "gpk_leadership");
+    url = await uploadToCloudinary(url, CLOUDINARY_FOLDERS.LEADERS);
+    finalPublicId = extractPublicId(url);
   }
 
   let createdId = `ldr-${Date.now()}`;
@@ -420,7 +464,8 @@ export const addLeader = asyncHandler(async (req, res) => {
     name,
     designation,
     photo: { src: url },
-    photoUrl: url
+    photoUrl: url,
+    photoPublicId: finalPublicId
   };
   inMemoryLeadership.push(leaderObj);
 
@@ -428,7 +473,8 @@ export const addLeader = asyncHandler(async (req, res) => {
     const newLdr = await Leadership.create({
       name,
       designation,
-      photoUrl: url
+      photoUrl: url,
+      photoPublicId: finalPublicId
     });
     createdId = newLdr._id.toString();
     leaderObj.id = createdId;
@@ -444,21 +490,28 @@ export const addLeader = asyncHandler(async (req, res) => {
 
 export const updateLeader = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, designation, src, photoUrl, photo } = req.body;
+  const { name, designation, src, photoUrl, photo, photoPublicId } = req.body;
 
   let url = photoUrl || src || (photo && photo.src) || "";
+  let finalPublicId = photoPublicId;
   if (url && url.startsWith("data:")) {
-    url = await uploadToCloudinary(url, "gpk_leadership");
+    url = await uploadToCloudinary(url, CLOUDINARY_FOLDERS.LEADERS);
+    finalPublicId = extractPublicId(url);
   }
 
+  let oldPhotoToClean = "";
   inMemoryLeadership = inMemoryLeadership.map(l => {
     if (l.id === id || l._id === id) {
+      if (url && l.photoUrl && l.photoUrl !== url) {
+        oldPhotoToClean = l.photoPublicId || l.photoUrl;
+      }
       return {
         ...l,
         name: name || l.name,
         designation: designation || l.designation,
         photo: { src: url || l.photoUrl || (l.photo && l.photo.src) || "" },
-        photoUrl: url || l.photoUrl || (l.photo && l.photo.src) || ""
+        photoUrl: url || l.photoUrl || (l.photo && l.photo.src) || "",
+        photoPublicId: finalPublicId || l.photoPublicId
       };
     }
     return l;
@@ -469,9 +522,20 @@ export const updateLeader = asyncHandler(async (req, res) => {
     if (ldr) {
       if (name) ldr.name = name;
       if (designation) ldr.designation = designation;
-      if (url) ldr.photoUrl = url;
+      if (url) {
+        if (ldr.photoUrl && ldr.photoUrl !== url) {
+          oldPhotoToClean = ldr.photoPublicId || ldr.photoUrl;
+        }
+        ldr.photoUrl = url;
+        ldr.photoPublicId = finalPublicId || extractPublicId(url);
+      }
       await ldr.save();
     }
+  }
+
+  // Safely clean up old asset from Cloudinary
+  if (oldPhotoToClean && oldPhotoToClean !== url) {
+    await deleteFromCloudinary(oldPhotoToClean);
   }
 
   res.status(200).json({
@@ -490,10 +554,24 @@ export const updateLeader = asyncHandler(async (req, res) => {
 export const deleteLeader = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  let oldPhotoToClean = "";
+  const existing = inMemoryLeadership.find(l => l.id === id || l._id === id);
+  if (existing) {
+    oldPhotoToClean = existing.photoPublicId || existing.photoUrl || (existing.photo && existing.photo.src);
+  }
+
   inMemoryLeadership = inMemoryLeadership.filter(l => l.id !== id && l._id !== id);
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
-    await Leadership.findByIdAndDelete(id);
+    const ldr = await Leadership.findById(id);
+    if (ldr) {
+      if (!oldPhotoToClean) oldPhotoToClean = ldr.photoPublicId || ldr.photoUrl;
+      await ldr.deleteOne();
+    }
+  }
+
+  if (oldPhotoToClean) {
+    await deleteFromCloudinary(oldPhotoToClean);
   }
 
   res.status(200).json({
@@ -530,11 +608,18 @@ export const getPrincipalMessage = asyncHandler(async (req, res) => {
 });
 
 export const updatePrincipalMessage = asyncHandler(async (req, res) => {
-  const { sectionTitle, name, designation, message, actionLabel, actionTo, src, photoUrl, photo } = req.body;
+  const { sectionTitle, name, designation, message, actionLabel, actionTo, src, photoUrl, photo, photoPublicId } = req.body;
 
   let url = photoUrl || src || (photo && photo.src) || "";
+  let finalPublicId = photoPublicId;
   if (url && url.startsWith("data:")) {
-    url = await uploadToCloudinary(url, "gpk_leadership");
+    url = await uploadToCloudinary(url, CLOUDINARY_FOLDERS.LEADERS);
+    finalPublicId = extractPublicId(url);
+  }
+
+  let oldPhotoToClean = "";
+  if (url && inMemoryPrincipal.photoUrl && inMemoryPrincipal.photoUrl !== url) {
+    oldPhotoToClean = inMemoryPrincipal.photoPublicId || inMemoryPrincipal.photoUrl;
   }
 
   inMemoryPrincipal = {
@@ -545,18 +630,27 @@ export const updatePrincipalMessage = asyncHandler(async (req, res) => {
     actionLabel: actionLabel || inMemoryPrincipal.actionLabel,
     actionTo: actionTo || inMemoryPrincipal.actionTo,
     photo: { src: url || (inMemoryPrincipal.photo && inMemoryPrincipal.photo.src) || "" },
-    photoUrl: url || inMemoryPrincipal.photoUrl || (inMemoryPrincipal.photo && inMemoryPrincipal.photo.src) || ""
+    photoUrl: url || inMemoryPrincipal.photoUrl || (inMemoryPrincipal.photo && inMemoryPrincipal.photo.src) || "",
+    photoPublicId: finalPublicId || inMemoryPrincipal.photoPublicId
   };
 
   if (mongoose.connection.readyState === 1) {
     const hp = await getOrCreateHomepageDoc();
+    if (url && hp.principalMessage?.photoUrl && hp.principalMessage.photoUrl !== url) {
+      oldPhotoToClean = hp.principalMessage.photoPublicId || hp.principalMessage.photoUrl;
+    }
     hp.principalMessage = {
       name: name || hp.principalMessage.name,
       designation: designation || hp.principalMessage.designation,
       message: message || hp.principalMessage.message,
-      photoUrl: url || hp.principalMessage.photoUrl
+      photoUrl: url || hp.principalMessage.photoUrl,
+      photoPublicId: finalPublicId || extractPublicId(url)
     };
     await hp.save();
+  }
+
+  if (oldPhotoToClean && oldPhotoToClean !== url) {
+    await deleteFromCloudinary(oldPhotoToClean);
   }
 
   res.status(200).json({
@@ -588,15 +682,17 @@ export const getRecruiters = asyncHandler(async (req, res) => {
 });
 
 export const addRecruiter = asyncHandler(async (req, res) => {
-  const { name, logo, logoUrl } = req.body;
+  const { name, logo, logoUrl, logoPublicId } = req.body;
 
   if (!name) {
     throw new ApiError(400, "Recruiter company name is required.");
   }
 
   let url = logo || logoUrl || "";
+  let finalPublicId = logoPublicId || extractPublicId(url);
   if (url && url.startsWith("data:")) {
-    url = await uploadToCloudinary(url, "gpk_recruiters");
+    url = await uploadToCloudinary(url, CLOUDINARY_FOLDERS.RECRUITERS);
+    finalPublicId = extractPublicId(url);
   }
   let createdId = `rec-${Date.now()}`;
   const recruiterObj = {
@@ -604,7 +700,8 @@ export const addRecruiter = asyncHandler(async (req, res) => {
     _id: createdId,
     name,
     logo: url,
-    logoUrl: url
+    logoUrl: url,
+    logoPublicId: finalPublicId
   };
   inMemoryRecruiters.push(recruiterObj);
 
@@ -614,7 +711,7 @@ export const addRecruiter = asyncHandler(async (req, res) => {
       placementDoc = await Placement.create({ academicYear: "2024-2025" });
     }
 
-    placementDoc.topRecruiters.push({ name, logoUrl: url });
+    placementDoc.topRecruiters.push({ name, logoUrl: url, logoPublicId: finalPublicId });
     await placementDoc.save();
     const last = placementDoc.topRecruiters[placementDoc.topRecruiters.length - 1];
     createdId = last._id.toString();
@@ -631,20 +728,27 @@ export const addRecruiter = asyncHandler(async (req, res) => {
 
 export const updateRecruiter = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, logo, logoUrl } = req.body;
+  const { name, logo, logoUrl, logoPublicId } = req.body;
 
   let url = logo || logoUrl || "";
+  let finalPublicId = logoPublicId;
   if (url && url.startsWith("data:")) {
-    url = await uploadToCloudinary(url, "gpk_recruiters");
+    url = await uploadToCloudinary(url, CLOUDINARY_FOLDERS.RECRUITERS);
+    finalPublicId = extractPublicId(url);
   }
 
+  let oldLogoToClean = "";
   inMemoryRecruiters = inMemoryRecruiters.map(r => {
     if (r.id === id || r._id === id) {
+      if (url && r.logoUrl && r.logoUrl !== url) {
+        oldLogoToClean = r.logoPublicId || r.logoUrl;
+      }
       return {
         ...r,
         name: name || r.name,
         logo: url || r.logo,
-        logoUrl: url || r.logoUrl
+        logoUrl: url || r.logoUrl,
+        logoPublicId: finalPublicId || r.logoPublicId
       };
     }
     return r;
@@ -656,10 +760,20 @@ export const updateRecruiter = asyncHandler(async (req, res) => {
       const rec = placementDoc.topRecruiters.id(id);
       if (rec) {
         if (name) rec.name = name;
-        if (url) rec.logoUrl = url;
+        if (url) {
+          if (rec.logoUrl && rec.logoUrl !== url) {
+            oldLogoToClean = rec.logoPublicId || rec.logoUrl;
+          }
+          rec.logoUrl = url;
+          rec.logoPublicId = finalPublicId || extractPublicId(url);
+        }
         await placementDoc.save();
       }
     }
+  }
+
+  if (oldLogoToClean && oldLogoToClean !== url) {
+    await deleteFromCloudinary(oldLogoToClean);
   }
 
   res.status(200).json({
@@ -672,14 +786,28 @@ export const updateRecruiter = asyncHandler(async (req, res) => {
 export const deleteRecruiter = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  let oldLogoToClean = "";
+  const existing = inMemoryRecruiters.find(r => r.id === id || r._id === id);
+  if (existing) {
+    oldLogoToClean = existing.logoPublicId || existing.logoUrl || existing.logo;
+  }
+
   inMemoryRecruiters = inMemoryRecruiters.filter(r => r.id !== id && r._id !== id);
 
   if (mongoose.connection.readyState === 1) {
     const placementDoc = await Placement.findOne();
     if (placementDoc) {
-      placementDoc.topRecruiters.pull({ _id: id });
-      await placementDoc.save();
+      const rec = placementDoc.topRecruiters.id(id);
+      if (rec) {
+        if (!oldLogoToClean) oldLogoToClean = rec.logoPublicId || rec.logoUrl || rec.logo;
+        placementDoc.topRecruiters.pull({ _id: id });
+        await placementDoc.save();
+      }
     }
+  }
+
+  if (oldLogoToClean) {
+    await deleteFromCloudinary(oldLogoToClean);
   }
 
   res.status(200).json({
@@ -717,13 +845,18 @@ export const addGalleryPreview = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Title and Image URL are required.");
   }
 
+  let finalSrc = src;
+  if (finalSrc.startsWith("data:")) {
+    finalSrc = await uploadToCloudinary(finalSrc, CLOUDINARY_FOLDERS.GALLERY);
+  }
+
   let createdId = `gal-${Date.now()}`;
   const galItem = {
     id: createdId,
     _id: createdId,
     title,
     category: category || "Campus",
-    src
+    src: finalSrc
   };
   inMemoryGallery.push(galItem);
 
@@ -731,8 +864,9 @@ export const addGalleryPreview = asyncHandler(async (req, res) => {
     const newGal = await Gallery.create({
       title,
       category: category || "Campus",
-      src,
-      thumbnail: src
+      src: finalSrc,
+      thumbnail: finalSrc,
+      public_id: extractPublicId(finalSrc)
     });
     createdId = newGal._id.toString();
     galItem.id = createdId;
@@ -750,13 +884,22 @@ export const updateGalleryPreview = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { title, category, src } = req.body;
 
+  let finalSrc = src;
+  if (finalSrc && finalSrc.startsWith("data:")) {
+    finalSrc = await uploadToCloudinary(finalSrc, CLOUDINARY_FOLDERS.GALLERY);
+  }
+
+  let oldSrcToClean = "";
   inMemoryGallery = inMemoryGallery.map(g => {
     if (g.id === id || g._id === id) {
+      if (finalSrc && g.src && g.src !== finalSrc) {
+        oldSrcToClean = g.src;
+      }
       return {
         ...g,
         title: title || g.title,
         category: category || g.category,
-        src: src || g.src
+        src: finalSrc || g.src
       };
     }
     return g;
@@ -767,28 +910,50 @@ export const updateGalleryPreview = asyncHandler(async (req, res) => {
     if (gal) {
       if (title) gal.title = title;
       if (category) gal.category = category;
-      if (src) {
-        gal.src = src;
-        gal.thumbnail = src;
+      if (finalSrc) {
+        if (gal.src && gal.src !== finalSrc) {
+          oldSrcToClean = gal.public_id || gal.src;
+        }
+        gal.src = finalSrc;
+        gal.thumbnail = finalSrc;
+        gal.public_id = extractPublicId(finalSrc);
       }
       await gal.save();
     }
   }
 
+  if (oldSrcToClean && oldSrcToClean !== finalSrc) {
+    await deleteFromCloudinary(oldSrcToClean);
+  }
+
   res.status(200).json({
     success: true,
     message: "Gallery image updated successfully.",
-    galleryItem: { id, title, category, src }
+    galleryItem: { id, title, category, src: finalSrc }
   });
 });
 
 export const deleteGalleryPreview = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  let oldSrcToClean = "";
+  const existing = inMemoryGallery.find(g => g.id === id || g._id === id);
+  if (existing) {
+    oldSrcToClean = existing.src;
+  }
+
   inMemoryGallery = inMemoryGallery.filter(g => g.id !== id && g._id !== id);
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
-    await Gallery.findByIdAndDelete(id);
+    const gal = await Gallery.findById(id);
+    if (gal) {
+      if (!oldSrcToClean) oldSrcToClean = gal.public_id || gal.src;
+      await gal.deleteOne();
+    }
+  }
+
+  if (oldSrcToClean) {
+    await deleteFromCloudinary(oldSrcToClean);
   }
 
   res.status(200).json({

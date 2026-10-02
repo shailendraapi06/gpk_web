@@ -2,7 +2,13 @@ import mongoose from "mongoose";
 import asyncHandler from "../middleware/asyncHandler.js";
 import { ApiError } from "../middleware/errorHandler.js";
 import Gallery from "../models/Gallery.js";
-import { uploadToCloudinary, deleteFromCloudinary } from "../utils/cloudinary.js";
+import {
+  uploadToCloudinary,
+  uploadBufferToCloudinary,
+  deleteFromCloudinary,
+  extractPublicId,
+  CLOUDINARY_FOLDERS
+} from "../utils/cloudinary.js";
 
 const DEFAULT_GALLERY_ITEMS = [
   {
@@ -194,7 +200,7 @@ export const getGalleryItemById = asyncHandler(async (req, res) => {
 // @route   POST /api/gallery
 // @access  Private (Admin)
 export const createGalleryItem = asyncHandler(async (req, res) => {
-  const { title, category, type = "photo", src, thumbnail, embedUrl, description, featured } = req.body;
+  const { title, category, type = "photo", src, thumbnail, embedUrl, description, featured, public_id } = req.body;
 
   if (!title || !title.trim()) {
     throw new ApiError(400, "Gallery title is required.");
@@ -205,13 +211,15 @@ export const createGalleryItem = asyncHandler(async (req, res) => {
 
   let finalSrc = src || "";
   let finalThumbnail = thumbnail || "";
+  let finalPublicId = public_id || extractPublicId(finalSrc);
 
   // Handle Cloudinary upload for base64 or file uploads
-  if (finalSrc) {
-    finalSrc = await uploadToCloudinary(finalSrc, "gpk_gallery");
+  if (finalSrc && finalSrc.startsWith("data:")) {
+    finalSrc = await uploadToCloudinary(finalSrc, CLOUDINARY_FOLDERS.GALLERY);
+    finalPublicId = extractPublicId(finalSrc);
   }
-  if (finalThumbnail) {
-    finalThumbnail = await uploadToCloudinary(finalThumbnail, "gpk_gallery");
+  if (finalThumbnail && finalThumbnail.startsWith("data:")) {
+    finalThumbnail = await uploadToCloudinary(finalThumbnail, CLOUDINARY_FOLDERS.GALLERY);
   } else if (type === "photo" && finalSrc) {
     finalThumbnail = finalSrc;
   }
@@ -224,6 +232,7 @@ export const createGalleryItem = asyncHandler(async (req, res) => {
       type,
       src: finalSrc,
       thumbnail: finalThumbnail,
+      public_id: finalPublicId,
       embedUrl: embedUrl || "",
       description: description || "",
       featured: Boolean(featured)
@@ -239,6 +248,7 @@ export const createGalleryItem = asyncHandler(async (req, res) => {
     type,
     src: finalSrc,
     thumbnail: finalThumbnail,
+    public_id: finalPublicId,
     embedUrl: embedUrl || "",
     description: description || "",
     featured: Boolean(featured)
@@ -258,24 +268,30 @@ export const createGalleryItem = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 export const updateGalleryItem = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, category, type, src, thumbnail, embedUrl, description, featured } = req.body;
+  const { title, category, type, src, thumbnail, embedUrl, description, featured, public_id } = req.body;
 
   let finalSrc = src;
   let finalThumbnail = thumbnail;
+  let finalPublicId = public_id;
 
-  if (finalSrc) {
-    finalSrc = await uploadToCloudinary(finalSrc, "gpk_gallery");
+  if (finalSrc && finalSrc.startsWith("data:")) {
+    finalSrc = await uploadToCloudinary(finalSrc, CLOUDINARY_FOLDERS.GALLERY);
+    finalPublicId = extractPublicId(finalSrc);
   }
-  if (finalThumbnail) {
-    finalThumbnail = await uploadToCloudinary(finalThumbnail, "gpk_gallery");
+  if (finalThumbnail && finalThumbnail.startsWith("data:")) {
+    finalThumbnail = await uploadToCloudinary(finalThumbnail, CLOUDINARY_FOLDERS.GALLERY);
   } else if (type === "photo" && finalSrc) {
     finalThumbnail = finalSrc;
   }
 
+  let oldSrcToClean = "";
   let updatedItem = null;
 
   inMemoryGalleryItems = inMemoryGalleryItems.map(item => {
     if (item.id === id || item._id === id) {
+      if (finalSrc && item.src && item.src !== finalSrc) {
+        oldSrcToClean = item.public_id || item.src;
+      }
       return {
         ...item,
         title: title !== undefined ? title.trim() : item.title,
@@ -283,6 +299,7 @@ export const updateGalleryItem = asyncHandler(async (req, res) => {
         type: type !== undefined ? type : item.type,
         src: finalSrc !== undefined ? finalSrc : item.src,
         thumbnail: finalThumbnail !== undefined ? finalThumbnail : item.thumbnail,
+        public_id: finalPublicId !== undefined ? finalPublicId : item.public_id,
         embedUrl: embedUrl !== undefined ? embedUrl : item.embedUrl,
         description: description !== undefined ? description : item.description,
         featured: featured !== undefined ? Boolean(featured) : item.featured
@@ -300,13 +317,24 @@ export const updateGalleryItem = asyncHandler(async (req, res) => {
     if (title !== undefined) item.title = title.trim();
     if (category !== undefined) item.category = category.trim();
     if (type !== undefined) item.type = type;
-    if (finalSrc !== undefined) item.src = finalSrc;
+    if (finalSrc !== undefined) {
+      if (item.src && item.src !== finalSrc) {
+        oldSrcToClean = item.public_id || item.src;
+      }
+      item.src = finalSrc;
+      item.public_id = finalPublicId || extractPublicId(finalSrc);
+    }
     if (finalThumbnail !== undefined) item.thumbnail = finalThumbnail;
     if (embedUrl !== undefined) item.embedUrl = embedUrl;
     if (description !== undefined) item.description = description;
     if (featured !== undefined) item.featured = Boolean(featured);
 
     updatedItem = await item.save();
+  }
+
+  // Safely clean up old Cloudinary asset
+  if (oldSrcToClean && oldSrcToClean !== finalSrc) {
+    await deleteFromCloudinary(oldSrcToClean);
   }
 
   res.status(200).json({
@@ -319,6 +347,7 @@ export const updateGalleryItem = asyncHandler(async (req, res) => {
       type,
       src: finalSrc,
       thumbnail: finalThumbnail,
+      public_id: finalPublicId,
       embedUrl,
       description,
       featured
@@ -332,15 +361,27 @@ export const updateGalleryItem = asyncHandler(async (req, res) => {
 export const deleteGalleryItem = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
+  let oldSrcToClean = "";
+  const existing = inMemoryGalleryItems.find(i => i.id === id || i._id === id);
+  if (existing) {
+    oldSrcToClean = existing.public_id || existing.src;
+  }
+
   inMemoryGalleryItems = inMemoryGalleryItems.filter(i => i.id !== id && i._id !== id);
 
   if (mongoose.connection.readyState === 1 && mongoose.Types.ObjectId.isValid(id)) {
     const item = await Gallery.findById(id);
     if (item) {
-      if (item.src) await deleteFromCloudinary(item.src);
-      if (item.thumbnail && item.thumbnail !== item.src) await deleteFromCloudinary(item.thumbnail);
+      if (!oldSrcToClean) oldSrcToClean = item.public_id || item.src;
+      if (item.thumbnail && item.thumbnail !== item.src) {
+        await deleteFromCloudinary(item.thumbnailPublicId || item.thumbnail);
+      }
       await item.deleteOne();
     }
+  }
+
+  if (oldSrcToClean) {
+    await deleteFromCloudinary(oldSrcToClean);
   }
 
   res.status(200).json({
@@ -354,17 +395,34 @@ export const deleteGalleryItem = asyncHandler(async (req, res) => {
 // @route   POST /api/gallery/upload
 // @access  Private (Admin)
 export const uploadGalleryImage = asyncHandler(async (req, res) => {
-  const { imageStr, folder = "gpk_gallery" } = req.body;
+  const folder = req.body.folder || CLOUDINARY_FOLDERS.GALLERY;
 
-  if (!imageStr) {
-    throw new ApiError(400, "Image data string or base64 is required.");
+  if (req.file) {
+    const result = await uploadBufferToCloudinary(req.file.buffer, folder, {
+      mimetype: req.file.mimetype,
+      originalname: req.file.originalname
+    });
+    return res.status(200).json({
+      success: true,
+      message: "Image uploaded successfully to Cloudinary.",
+      url: result.url,
+      public_id: result.public_id
+    });
   }
 
-  const uploadedUrl = await uploadToCloudinary(imageStr, folder);
+  const { imageStr, file } = req.body;
+  const target = imageStr || file;
+
+  if (!target) {
+    throw new ApiError(400, "Image file or data string is required.");
+  }
+
+  const uploadedUrl = await uploadToCloudinary(target, folder);
 
   res.status(200).json({
     success: true,
     message: "Image uploaded successfully.",
-    url: uploadedUrl
+    url: uploadedUrl,
+    public_id: extractPublicId(uploadedUrl)
   });
 });

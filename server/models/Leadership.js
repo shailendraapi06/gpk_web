@@ -16,6 +16,10 @@ const leadershipSchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+    photoPublicId: {
+      type: String,
+      default: ""
+    },
     order: {
       type: Number,
       default: 0

@@ -18,8 +18,11 @@ async function startServer() {
   await ensureSingleAdmin();
 
   // Core Middlewares
+  const clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.trim() : "";
+  const corsOrigin = (!clientUrl || clientUrl === "*" || !clientUrl.startsWith("http")) ? true : clientUrl;
+
   app.use(cors({
-    origin: process.env.CLIENT_URL || true,
+    origin: corsOrigin,
     credentials: true
   }));
   app.use(express.json({ limit: "10mb" }));

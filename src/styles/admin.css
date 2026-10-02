@@ -158,8 +158,10 @@
   gap: 1rem;
 }
 
-.admin-navbar__toggle {
-  display: none;
+.admin-navbar__toggle,
+.admin-navbar__toggle--mobile-only,
+.admin-sidebar__close-btn {
+  display: none !important;
   font-size: 1.5rem;
   color: var(--color-text-soft);
   cursor: pointer;
@@ -167,7 +169,12 @@
   border-radius: var(--radius-sm);
 }
 
-.admin-navbar__toggle:hover {
+.admin-sidebar-overlay {
+  display: none;
+}
+
+.admin-navbar__toggle:hover,
+.admin-navbar__toggle--mobile-only:hover {
   background-color: var(--color-neutral-100);
 }
 
@@ -1248,22 +1255,6 @@
 
 /* Responsive Rules */
 @media (max-width: 1024px) {
-  .admin-sidebar {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    transform: translateX(-100%);
-  }
-
-  .admin-sidebar--open {
-    transform: translateX(0);
-  }
-
-  .admin-navbar__toggle {
-    display: block;
-  }
-  
   .admin-inbox {
     height: auto;
     flex-direction: column;
@@ -1277,7 +1268,81 @@
   }
 }
 
+@media (min-width: 769px) {
+  .admin-sidebar {
+    position: sticky !important;
+    top: 0 !important;
+    transform: none !important;
+    display: flex !important;
+  }
+
+  .admin-navbar__toggle,
+  .admin-navbar__toggle--mobile-only,
+  .admin-sidebar__close-btn {
+    display: none !important;
+  }
+
+  .admin-sidebar-overlay {
+    display: none !important;
+  }
+}
+
 @media (max-width: 768px) {
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 280px;
+    height: 100%;
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    transition: transform var(--transition-base);
+  }
+
+  .admin-sidebar--open {
+    transform: translateX(0);
+  }
+
+  .admin-navbar__toggle,
+  .admin-navbar__toggle--mobile-only {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: var(--color-text-soft);
+    cursor: pointer;
+    padding: 0.35rem;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    border: none;
+  }
+
+  .admin-sidebar__close-btn {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    color: #ffffff;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0.25rem;
+  }
+
+  .admin-sidebar-overlay {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(11, 31, 63, 0.5);
+    backdrop-filter: blur(2px);
+    z-index: 95;
+  }
+
   .admin-content {
     padding: 1.25rem;
   }

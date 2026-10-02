@@ -2,11 +2,21 @@ import React, { useState, useEffect } from "react";
 import { PlusIcon, EditIcon, DeleteIcon, SearchIcon, DocumentIcon } from "../../components/admin/Icons";
 import { DeleteConfirmationModal } from "../../components/admin/DeleteConfirmationModal";
 import { apiRequest } from "../../services/api/client";
+import { uploadImageToCloudinary, CLOUDINARY_FOLDERS } from "../../services/api/uploadService";
 
 export function AdminHomepageMgmtPage() {
   const [activeTab, setActiveTab] = useState("hero");
   const [alertInfo, setAlertInfo] = useState({ show: false, text: "", type: "success" });
   const [loading, setLoading] = useState(true);
+
+  // File upload state for Cloudinary (zero Base64 storage)
+  const [heroFile, setHeroFile] = useState(null);
+  const [leaderFile, setLeaderFile] = useState(null);
+  const [noticeFile, setNoticeFile] = useState(null);
+  const [recruiterFile, setRecruiterFile] = useState(null);
+  const [principalFile, setPrincipalFile] = useState(null);
+  const [principalPreviewUrl, setPrincipalPreviewUrl] = useState("");
+  const [galleryFile, setGalleryFile] = useState(null);
 
   const triggerAlert = (text, type = "success") => {
     setAlertInfo({ show: true, text, type });
@@ -130,37 +140,56 @@ export function AdminHomepageMgmtPage() {
   // ==========================================
   const handleHeroAdd = () => {
     setCurrentHero(null);
-    setHeroFormData({ src: "" });
+    setHeroFile(null);
+    setHeroFormData({ src: "", previewUrl: "" });
     setIsHeroFormOpen(true);
   };
   const handleHeroEdit = (slide) => {
     setCurrentHero(slide);
-    setHeroFormData({ src: slide.src || slide.image || "" });
+    setHeroFile(null);
+    setHeroFormData({ src: slide.src || slide.image || "", previewUrl: "" });
     setIsHeroFormOpen(true);
   };
   const handleHeroSubmit = async (e) => {
     e.preventDefault();
-    if (!heroFormData.src) return;
+    let finalSrc = heroFormData.src;
+    let imagePublicId = "";
 
     try {
+      if (heroFile) {
+        triggerAlert("Uploading slide image to Cloudinary...", "info");
+        const uploadRes = await uploadImageToCloudinary(heroFile, CLOUDINARY_FOLDERS.HEROES);
+        finalSrc = uploadRes.url;
+        imagePublicId = uploadRes.public_id;
+        if (heroFormData.previewUrl) URL.revokeObjectURL(heroFormData.previewUrl);
+        setHeroFile(null);
+      }
+
+      if (!finalSrc) {
+        triggerAlert("Please select or enter an image URL.", "error");
+        return;
+      }
+
       if (currentHero) {
         const res = await apiRequest(`/homepage/hero/${currentHero.id || currentHero._id}`, "PUT", {
-          src: heroFormData.src,
-          image: heroFormData.src,
-          imageUrl: heroFormData.src
+          src: finalSrc,
+          image: finalSrc,
+          imageUrl: finalSrc,
+          imagePublicId
         });
-        setSlides(prev => prev.map(s => (s.id === currentHero.id || s._id === currentHero._id) ? { ...s, src: heroFormData.src, image: heroFormData.src } : s));
+        setSlides(prev => prev.map(s => (s.id === currentHero.id || s._id === currentHero._id) ? { ...s, src: finalSrc, image: finalSrc, imageUrl: finalSrc, imagePublicId } : s));
         triggerAlert(res.message || "Hero Slide updated successfully!");
       } else {
         const res = await apiRequest("/homepage/hero", "POST", {
-          src: heroFormData.src,
-          image: heroFormData.src,
-          imageUrl: heroFormData.src
+          src: finalSrc,
+          image: finalSrc,
+          imageUrl: finalSrc,
+          imagePublicId
         });
         if (res.slide) {
           setSlides(prev => [...prev, res.slide]);
         } else {
-          setSlides(prev => [...prev, { id: `hero-${Date.now()}`, src: heroFormData.src, image: heroFormData.src }]);
+          setSlides(prev => [...prev, { id: `hero-${Date.now()}`, src: finalSrc, image: finalSrc, imageUrl: finalSrc, imagePublicId }]);
         }
         triggerAlert(res.message || "New Hero Slide added successfully!");
       }
@@ -192,25 +221,45 @@ export function AdminHomepageMgmtPage() {
   // ==========================================
   const handleLeaderAdd = () => {
     setCurrentLeader(null);
-    setLeaderFormData({ name: "", designation: "", src: "" });
+    setLeaderFile(null);
+    setLeaderFormData({ name: "", designation: "", src: "", previewUrl: "" });
     setIsLeaderFormOpen(true);
   };
   const handleLeaderEdit = (ldr) => {
     setCurrentLeader(ldr);
-    setLeaderFormData({ name: ldr.name, designation: ldr.designation, src: ldr.photo?.src || ldr.photoUrl || "" });
+    setLeaderFile(null);
+    setLeaderFormData({ name: ldr.name, designation: ldr.designation, src: ldr.photo?.src || ldr.photoUrl || "", previewUrl: "" });
     setIsLeaderFormOpen(true);
   };
   const handleLeaderSubmit = async (e) => {
     e.preventDefault();
-    const payload = {
-      name: leaderFormData.name,
-      designation: leaderFormData.designation,
-      src: leaderFormData.src,
-      photoUrl: leaderFormData.src,
-      photo: { src: leaderFormData.src }
-    };
+    let finalSrc = leaderFormData.src;
+    let photoPublicId = "";
 
     try {
+      if (leaderFile) {
+        triggerAlert("Uploading leader photo to Cloudinary...", "info");
+        const uploadRes = await uploadImageToCloudinary(leaderFile, CLOUDINARY_FOLDERS.LEADERS);
+        finalSrc = uploadRes.url;
+        photoPublicId = uploadRes.public_id;
+        if (leaderFormData.previewUrl) URL.revokeObjectURL(leaderFormData.previewUrl);
+        setLeaderFile(null);
+      }
+
+      if (!finalSrc) {
+        triggerAlert("Please select or enter a photo URL.", "error");
+        return;
+      }
+
+      const payload = {
+        name: leaderFormData.name,
+        designation: leaderFormData.designation,
+        src: finalSrc,
+        photoUrl: finalSrc,
+        photoPublicId,
+        photo: { src: finalSrc }
+      };
+
       if (currentLeader) {
         const res = await apiRequest(`/homepage/leadership/${currentLeader.id || currentLeader._id}`, "PUT", payload);
         setLeadersList(prev => prev.map(l => (l.id === currentLeader.id || l._id === currentLeader._id) ? { ...l, ...payload } : l));
